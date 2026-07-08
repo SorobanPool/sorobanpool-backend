@@ -10,6 +10,8 @@ pnpm lint && pnpm build && pnpm test && pnpm test:e2e
 ```
 One codebase, role chosen by `ROLE=api|worker|indexer`. Status: M2 (backend core) — verified end to end on Stellar testnet (`test/e2e/m2-flow.e2e-spec.ts`).
 
+The product and architecture brief (source of truth): [sorobanpool-contracts/docs/brief.md](https://github.com/SorobanPool/sorobanpool-contracts/blob/main/docs/brief.md). Sibling repos: [contracts](https://github.com/SorobanPool/sorobanpool-contracts), [backend](https://github.com/SorobanPool/sorobanpool-backend), [frontend](https://github.com/SorobanPool/sorobanpool-frontend).
+
 ## Verify
 ```
 pnpm lint && pnpm exec tsc --noEmit && pnpm build && pnpm test          # 126+ tests, real Postgres semantics via PGlite
