@@ -54,25 +54,25 @@
     "data": "role"
   },
   {
-    "contract": "reputation",
+    "contract": "rep",
     "event": "rep_upd",
     "key": "subject",
     "data": "(role, event, tier)"
   },
   {
-    "contract": "supplier_bond",
+    "contract": "bond",
     "event": "deposit",
     "key": "supplier",
     "data": "amount"
   },
   {
-    "contract": "supplier_bond",
+    "contract": "bond",
     "event": "withdraw",
     "key": "supplier",
     "data": "amount"
   },
   {
-    "contract": "supplier_bond",
+    "contract": "bond",
     "event": "slashed",
     "key": "supplier",
     "data": "amount"

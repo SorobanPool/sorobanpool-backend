@@ -102,7 +102,7 @@ describe('projection into Postgres', () => {
 
 describe('indexer on Postgres', () => {
   it('stores raw events once, advances a persisted cursor and survives re-polling', async () => {
-    const ev = raw('supplier_bond', 'deposit', a(supplier), i128(5_000_000_000n), 50);
+    const ev = raw('bond', 'deposit', a(supplier), i128(5_000_000_000n), 50);
     const rpc: RpcPort = {
       latestLedger: async () => 60, oldestLedger: async () => 1,
       getEvents: async (from, to) => ([ev].filter((e) => e.ledger >= from && e.ledger <= to)),
