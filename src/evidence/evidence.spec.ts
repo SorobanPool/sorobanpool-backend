@@ -23,14 +23,15 @@ describe('evidence', () => {
   });
   it('signs URLs for five minutes and rejects tampering', () => {
     const now = 1_700_000_000_000;
-    const { url, expires } = signUrl('k'.repeat(32), 'pool/1/a.jpg', 'u1', now);
+    const { url, expires } = signUrl('k'.repeat(32), 'GET', 'pool/1/a.jpg', 'u1', now);
     const q = new URL(url, 'http://x').searchParams;
     const p = { key: q.get('key')!, u: q.get('u')!, e: Number(q.get('e')), s: q.get('s')! };
     expect(expires - now / 1000).toBe(300);
-    expect(verifySignedUrl('k'.repeat(32), p, now + 299_000)).toBe(true);
-    expect(verifySignedUrl('k'.repeat(32), p, now + 301_000)).toBe(false);
-    expect(verifySignedUrl('k'.repeat(32), { ...p, u: 'u2' }, now)).toBe(false);
-    expect(verifySignedUrl('x'.repeat(32), p, now)).toBe(false);
+    expect(verifySignedUrl('k'.repeat(32), 'GET', p, now + 299_000)).toBe(true);
+    expect(verifySignedUrl('k'.repeat(32), 'GET', p, now + 301_000)).toBe(false);
+    expect(verifySignedUrl('k'.repeat(32), 'GET', { ...p, u: 'u2' }, now)).toBe(false);
+    expect(verifySignedUrl('x'.repeat(32), 'GET', p, now)).toBe(false);
+    expect(verifySignedUrl('k'.repeat(32), 'PUT', p, now)).toBe(false); // a read link never authorises a write
   });
   it('turns a large photo into a small WebP with no metadata', async () => {
     const src = await sharp({ create: { width: 2000, height: 1500, channels: 3, background: '#c33' } })

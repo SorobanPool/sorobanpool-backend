@@ -37,6 +37,17 @@ export const envSchema = z.object({
   SENTRY_DSN: z.string().default(''),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().default(''),
   MAINNET_ENABLED: bool.default(false),
+  /** Dev only: return the OTP in the API response. Refused in production. */
+  OTP_DEV_ECHO: bool.default(false),
+  /** Dev only: phones that receive ADMIN / ARBITER on first login. Refused in production. */
+  BOOTSTRAP_ADMIN_PHONES: z.string().default(''),
+  BOOTSTRAP_ARBITER_PHONES: z.string().default(''),
+  INDEXER_EMBEDDED: bool.default(false),
+  KEEPER_EMBEDDED: bool.default(false),
+  EVIDENCE_DIR: z.string().default('.evidence'),
+  /** Comma separated NGN-per-USD rates used by the static FX provider (testnet/dev). */
+  FX_STATIC: z.string().default('1500,1505'),
+  INDEXER_START_LEDGER: z.coerce.number().int().default(1),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -47,6 +58,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`);
     throw new Error(`Invalid environment:\n${lines.join('\n')}`);
+  }
+  const d = parsed.data;
+  if (d.NODE_ENV === 'production' && (d.OTP_DEV_ECHO || d.BOOTSTRAP_ADMIN_PHONES || d.BOOTSTRAP_ARBITER_PHONES)) {
+    throw new Error('OTP_DEV_ECHO and BOOTSTRAP_*_PHONES are development-only and are refused when NODE_ENV=production');
   }
   if (parsed.data.STELLAR_NETWORK === 'mainnet' && !parsed.data.MAINNET_ENABLED) {
     throw new Error('STELLAR_NETWORK=mainnet requires MAINNET_ENABLED=true (testnet only until the audit is complete)');

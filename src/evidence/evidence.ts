@@ -29,17 +29,26 @@ export function canReadEvidence(a: EvidenceAccess): boolean {
   return a.roles.includes('ARBITER') && a.disputeId != null && a.assignedArbiterFor === a.disputeId;
 }
 
-/** Short-lived HMAC-signed read URL for local/dev storage; S3 deployments use native presigned URLs instead. */
-export function signUrl(secret: string, objectKey: string, userId: string, now = Date.now()): { url: string; expires: number } {
-  const expires = Math.floor(now / 1000) + SIGNED_URL_TTL_SECONDS;
-  const sig = createHmac('sha256', secret).update(`${objectKey}|${userId}|${expires}`).digest('base64url');
-  return { url: `/v1/evidence/file?key=${encodeURIComponent(objectKey)}&u=${encodeURIComponent(userId)}&e=${expires}&s=${sig}`, expires };
+/** HMAC over purpose|key|user|expiry. The purpose (GET/PUT) keeps a read link from ever authorising a write. */
+function mac(secret: string, purpose: string, objectKey: string, userId: string, expires: number): string {
+  return createHmac('sha256', secret).update(`${purpose}|${objectKey}|${userId}|${expires}`).digest('base64url');
 }
 
-export function verifySignedUrl(secret: string, p: { key: string; u: string; e: number; s: string }, now = Date.now()): boolean {
-  if (p.e < Math.floor(now / 1000)) return false;
-  const expected = createHmac('sha256', secret).update(`${p.key}|${p.u}|${p.e}`).digest('base64url');
-  const a = Buffer.from(expected);
+export function signParts(secret: string, purpose: 'GET' | 'PUT', objectKey: string, userId: string, now = Date.now()): { e: number; s: string } {
+  const e = Math.floor(now / 1000) + SIGNED_URL_TTL_SECONDS;
+  return { e, s: mac(secret, purpose, objectKey, userId, e) };
+}
+
+/** Short-lived (5 minute) signed URL for local/dev storage; S3 deployments use native presigned URLs instead. */
+export function signUrl(secret: string, purpose: 'GET' | 'PUT', objectKey: string, userId: string, now = Date.now()): { url: string; expires: number } {
+  const { e, s } = signParts(secret, purpose, objectKey, userId, now);
+  const path = purpose === 'PUT' ? '/v1/uploads/put' : '/v1/evidence/file';
+  return { url: `${path}?key=${encodeURIComponent(objectKey)}&u=${encodeURIComponent(userId)}&e=${e}&s=${s}`, expires: e };
+}
+
+export function verifySignedUrl(secret: string, purpose: 'GET' | 'PUT', p: { key: string; u: string; e: number; s: string }, now = Date.now()): boolean {
+  if (!Number.isFinite(p.e) || p.e < Math.floor(now / 1000)) return false;
+  const a = Buffer.from(mac(secret, purpose, p.key, p.u, p.e));
   const b = Buffer.from(p.s);
   return a.length === b.length && timingSafeEqual(a, b);
 }
