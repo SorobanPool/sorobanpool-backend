@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { A } from '../chain/args.js';
 import { canonicalJson, sha256Hex } from '../common/canonical-json.js';
-import { formatUsdc } from '../common/money.js';
+import { formatUsdc, toStroops } from '../common/money.js';
 import { unitLabelHash } from '../catalog/offer.js';
 import { quote as priceQuote, ceilingPrice, tierIndex } from '../pools/pricing.js';
 import { renderShareCard } from '../sharecards/sharecard.js';
@@ -76,11 +76,12 @@ export class PoolsController {
         hub: { address: pool.hubAddress, contact: pool.hubContact }, pickupWindow: pool.pickupWindow, fillDeadline: pool.fillDeadline,
         totalUnits: pool.totalUnits, receivedUnits: pool.receivedUnits, moq: offer?.moq ?? null, maxUnits: offer?.maxUnits ?? null, members,
         ngnPerUsd: rate ?? null,
+        filledAt: pool.filledAt,
         progressPct: offer && offer.moq > 0 ? Math.min(100, Math.floor((pool.totalUnits * 100) / offer.moq)) : 0,
         currentUnitPriceUsdc: price.toString(), currentUnitPriceNaira: rate ? naira(((price * BigInt(Math.round(rate * 1e6))) / 10_000_000n / 1_000_000n)) : null,
         nextBreak: next ? { unitsToGo: next.minUnits - pool.totalUnits, unitPriceUsdc: next.unitPrice.toString() } : null,
         tiersUsdc: tiers.map((t) => ({ minUnits: t.minUnits, unitPrice: t.unitPrice.toString() })),
-        finalUnitPriceUsdc: pool.finalUnitPrice?.toString() ?? null, escrowBalanceUsdc: pool.escrowBalance.toString(),
+        finalUnitPriceUsdc: pool.finalUnitPrice ? toStroops(pool.finalUnitPrice.toString()).toString() : null, escrowBalanceUsdc: toStroops(pool.escrowBalance.toString()).toString(), // stroops, like every other *Usdc field here
         offer: offer ? publicOffer(offer) : null,
         trustMessage: 'Your money is held safely. The supplier is paid only after the goods arrive. If the group does not fill, you get everything back automatically.',
       },
@@ -115,7 +116,7 @@ export class PoolsController {
     const rows = await this.s.prisma.pool.findMany({ where, orderBy: { id: 'desc' }, take: 100 });
     const cards = await Promise.all(rows.map(async (p) => {
       const { view } = await this.poolView(p.id);
-      return { id: view.id, state: view.state, organizer: view.organizer, shareSlug: view.shareSlug, offerId: view.offerId, totalUnits: view.totalUnits, moq: view.moq, progressPct: view.progressPct,
+      return { id: view.id, state: view.state, organizer: view.organizer, supplier: view.supplier, shareSlug: view.shareSlug, offerId: view.offerId, totalUnits: view.totalUnits, moq: view.moq, progressPct: view.progressPct,
         fillDeadline: view.fillDeadline, title: view.offer?.title ?? null, unitLabel: view.offer?.unitLabel ?? null, currentUnitPriceNaira: view.currentUnitPriceNaira, hub: view.hub.address };
     }));
     return cards;
