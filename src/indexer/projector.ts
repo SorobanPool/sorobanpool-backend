@@ -13,19 +13,21 @@ async function mustPool(s: ReadStore, key: unknown): Promise<PoolRow> {
   return p;
 }
 
-const setState = (state: PoolState): Handler => async (ev, s) => {
+const setState = (state: PoolState, patch?: (p: PoolRow, ev: DecodedEvent) => Partial<PoolRow>): Handler => async (ev, s) => {
   const p = await mustPool(s, ev.key);
-  await s.savePool({ ...p, state });
+  await s.savePool({ ...p, state, ...patch?.(p, ev) });
 };
 
 export const HANDLERS: Record<string, Handler> = {
   'group_buy.pool_new': async (ev, s) => {
-    const [organizer, supplier, offerHash] = tuple(ev.data);
+    const [organizer, supplier, offerHash, hubHash] = tuple(ev.data);
+    const hex = (b: unknown) => Buffer.from(b as Uint8Array).toString('hex');
     await s.savePool({
       id: asBig(ev.key), organizer: String(organizer), supplier: String(supplier),
-      offerHash: Buffer.from(offerHash as Uint8Array).toString('hex'), state: 'Open', totalUnits: 0,
+      offerHash: hex(offerHash), hubHash: hex(hubHash), state: 'Open', totalUnits: 0,
       receivedUnits: null, currentTierIdx: 0, finalUnitPrice: 0n, escrowBalance: 0n, frozenAmount: 0n,
-      advancePaid: 0n, lastEventLedger: ev.ledger,
+      advancePaid: 0n, filledAt: null, acceptedAt: null, dispatchedAt: null, deliveredAt: null,
+      pickedUnits: 0, allocationPending: false, refundsPushed: false, lastEventLedger: ev.ledger,
     });
   },
   'group_buy.committed': commit,
@@ -45,14 +47,14 @@ export const HANDLERS: Record<string, Handler> = {
   'group_buy.filled': async (ev, s) => {
     const [total, price] = tuple(ev.data);
     const p = await mustPool(s, ev.key);
-    await s.savePool({ ...p, state: 'Filled', totalUnits: asNum(total), finalUnitPrice: asBig(price) });
+    await s.savePool({ ...p, state: 'Filled', totalUnits: asNum(total), finalUnitPrice: asBig(price), filledAt: ev.closedAt });
   },
   'group_buy.expired': setState('Expired'),
   'group_buy.cancelled': setState('Cancelled'),
-  'group_buy.accepted': setState('Accepted'),
+  'group_buy.accepted': setState('Accepted', (_, ev) => ({ acceptedAt: ev.closedAt })),
   'group_buy.rejected': setState('Failed'),
   'group_buy.failed': setState('Failed'),
-  'group_buy.dispatch': setState('Dispatched'),
+  'group_buy.dispatch': setState('Dispatched', (_, ev) => ({ dispatchedAt: ev.closedAt })),
   'group_buy.advance': async (ev, s) => {
     const p = await mustPool(s, ev.key);
     const a = asBig(ev.data);
@@ -60,13 +62,24 @@ export const HANDLERS: Record<string, Handler> = {
   },
   'group_buy.delivered': async (ev, s) => {
     const p = await mustPool(s, ev.key);
-    await s.savePool({ ...p, state: 'Delivered', receivedUnits: asNum(tuple(ev.data)[0]) });
+    const received = asNum(tuple(ev.data)[0]);
+    await s.savePool({
+      ...p, state: 'Delivered', receivedUnits: received, deliveredAt: ev.closedAt,
+      allocationPending: received < p.totalUnits,
+    });
   },
   'group_buy.shortfall': async () => {}, // implied by delivered.receivedUnits < totalUnits
+  'group_buy.alloc_ok': async (ev, s) => {
+    const p = await mustPool(s, ev.key);
+    await s.savePool({ ...p, allocationPending: false });
+  },
   'group_buy.pickup': async (ev, s) => {
     const p = await mustPool(s, ev.key);
     const c = await s.commitment(p.id, String(ev.data));
-    if (c) await s.saveCommitment({ ...c, pickedUp: true });
+    if (c && !c.pickedUp) {
+      await s.saveCommitment({ ...c, pickedUp: true });
+      await s.savePool({ ...p, pickedUnits: p.pickedUnits + c.units });
+    }
   },
   'group_buy.settled': async (ev, s) => {
     const [supplierNet, platform, organizer] = tuple(ev.data).map(asBig) as [bigint, bigint, bigint];
@@ -82,7 +95,7 @@ export const HANDLERS: Record<string, Handler> = {
   },
   'disputes.d_open': async (ev, s) => {
     const [poolId, opener, amount] = tuple(ev.data);
-    await s.saveDispute({ id: asBig(ev.key), poolId: asBig(poolId), opener: String(opener), claimedAmount: asBig(amount), state: 'OPEN' });
+    await s.saveDispute({ id: asBig(ev.key), poolId: asBig(poolId), opener: String(opener), claimedAmount: asBig(amount), openedAt: ev.closedAt, state: 'OPEN' });
     const p = await mustPool(s, poolId);
     await s.savePool({ ...p, frozenAmount: p.frozenAmount + asBig(amount) });
   },
@@ -134,7 +147,7 @@ async function bondDelta(ev: DecodedEvent, s: ReadStore, delta: bigint): Promise
 export class Projector {
   constructor(private readonly store: ReadStore) {}
 
-  /** Applies one event idempotently. Returns false if it was a duplicate or intentionally ignored. */
+  /** Applies one event idempotently and atomically: a failing handler leaves no trace (not even the processed mark). */
   async apply(ev: DecodedEvent): Promise<boolean> {
     const name = `${ev.contract}.${ev.event}`;
     const handler = HANDLERS[name];
@@ -142,10 +155,12 @@ export class Projector {
       if (IGNORED_EVENTS.has(name)) return false;
       throw new Error(`no projector handler for ${name}`);
     }
-    if (await this.store.markProcessed(ev.id)) return false;
-    await handler(ev, this.store);
-    const p = ev.contract === 'group_buy' ? await this.store.pool(BigInt(ev.key as bigint)) : undefined;
-    if (p) await this.store.savePool({ ...p, lastEventLedger: Math.max(p.lastEventLedger, ev.ledger) });
-    return true;
+    return this.store.atomically(async (s) => {
+      if (await s.markProcessed(ev.id, { ledger: ev.ledger, contract: ev.contract, topic: ev.event })) return false;
+      await handler(ev, s);
+      const p = ev.contract === 'group_buy' ? await s.pool(BigInt(ev.key as bigint)) : undefined;
+      if (p) await s.savePool({ ...p, lastEventLedger: Math.max(p.lastEventLedger, ev.ledger) });
+      return true;
+    });
   }
 }

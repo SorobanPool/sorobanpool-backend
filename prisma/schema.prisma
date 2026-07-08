@@ -161,7 +161,19 @@ model Pool {
   totalUnits       Int      @default(0)
   receivedUnits    Int?
   currentTierIdx   Int      @default(0)
-  currentUnitPrice Decimal  @db.Decimal(38, 7)
+  currentUnitPrice Decimal  @default(0) @db.Decimal(38, 7)
+  finalUnitPrice   Decimal? @db.Decimal(38, 7)
+  advancePaid      Decimal  @default(0) @db.Decimal(38, 7)
+  offerHash        String   @default("")
+  filledAt         DateTime?
+  acceptedAt       DateTime?
+  dispatchedAt     DateTime?
+  deliveredAt      DateTime?
+  pickedUnits      Int      @default(0)
+  /// True from a short delivery until the contract emits alloc_ok.
+  allocationPending Boolean @default(false)
+  /// Set once push_refunds has walked every member.
+  refundsPushed    Boolean  @default(false)
   fillDeadline     DateTime
   escrowBalance    Decimal  @default(0) @db.Decimal(38, 7)
   frozenAmount     Decimal  @default(0) @db.Decimal(38, 7)
@@ -178,7 +190,8 @@ model Commitment {
   paid           Decimal  @db.Decimal(38, 7)
   allocatedUnits Int?
   refundDue      Decimal? @db.Decimal(38, 7)
-  refundClaimed  Boolean  @default(false)
+  /// Total refund already paid out to the member.
+  refundClaimed  Decimal  @default(0) @db.Decimal(38, 7)
   pickedUp       Boolean  @default(false)
 
   @@id([poolId, memberAddress])
@@ -194,6 +207,7 @@ model Dispute {
   state           String
   outcome         Json?
   arbiterAddress  String?
+  openedAt        DateTime
   slaDueAt        DateTime
   lastEventLedger Int      @default(0)
 
@@ -292,4 +306,18 @@ model SponsorUsage {
   count  Int    @default(0)
 
   @@id([userId, day])
+}
+
+/// Off-chain details of a pool being created; linked to the on-chain pool by hubHash when `pool_new` is indexed.
+model PendingPool {
+  id               String   @id @default(cuid())
+  hubHash          String   @unique
+  offerId          String
+  organizerAddress String
+  hubAddress       String
+  hubContact       String
+  pickupWindow     Json
+  fillDeadline     DateTime
+  shareSlug        String   @unique
+  createdAt        DateTime @default(now())
 }

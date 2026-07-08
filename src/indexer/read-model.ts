@@ -6,6 +6,8 @@ export interface PoolRow {
   organizer: string;
   supplier: string;
   offerHash: string;
+  /** Links this pool to the off-chain hub details recorded when the pool was prepared. */
+  hubHash: string;
   state: PoolState;
   totalUnits: number;
   receivedUnits: number | null;
@@ -15,6 +17,14 @@ export interface PoolRow {
   escrowBalance: bigint;
   frozenAmount: bigint;
   advancePaid: bigint;
+  filledAt: Date | null;
+  acceptedAt: Date | null;
+  dispatchedAt: Date | null;
+  deliveredAt: Date | null;
+  pickedUnits: number;
+  /** True from a short delivery until alloc_ok. */
+  allocationPending: boolean;
+  refundsPushed: boolean;
   lastEventLedger: number;
 }
 
@@ -32,6 +42,7 @@ export interface DisputeRow {
   poolId: bigint;
   opener: string;
   claimedAmount: bigint;
+  openedAt: Date;
   state: 'OPEN' | 'RESOLVED' | 'TIMED_OUT';
   arbiter?: string;
   reasoningHash?: string;
@@ -52,8 +63,10 @@ export interface ReadStore {
   saveDispute(row: DisputeRow): Promise<void>;
   bond(supplier: string): Promise<BondRow | undefined>;
   saveBond(row: BondRow): Promise<void>;
-  /** True if the event id was already processed; marks it processed otherwise (atomic). */
-  markProcessed(eventId: string): Promise<boolean>;
+  /** True if the event id was already processed; marks it processed otherwise. */
+  markProcessed(eventId: string, ev: { ledger: number; contract: string; topic: string }): Promise<boolean>;
+  /** Runs `fn` so that all of its writes commit together or not at all. */
+  atomically<T>(fn: (s: ReadStore) => Promise<T>): Promise<T>;
 }
 
 export class MemoryReadStore implements ReadStore {
@@ -74,5 +87,18 @@ export class MemoryReadStore implements ReadStore {
     if (this.processed.has(id)) return true;
     this.processed.add(id);
     return false;
+  }
+  /** Best effort in memory: restores a snapshot if `fn` throws. */
+  async atomically<T>(fn: (s: ReadStore) => Promise<T>): Promise<T> {
+    const snap = {
+      pools: new Map(this.pools), commitments: new Map(this.commitments), disputes: new Map(this.disputes),
+      bonds: new Map(this.bonds), processed: new Set(this.processed),
+    };
+    try {
+      return await fn(this);
+    } catch (e) {
+      Object.assign(this, snap);
+      throw e;
+    }
   }
 }
