@@ -321,3 +321,14 @@ describe('dev faucet', () => {
     await h.http().post('/v1/dev/faucet/start').set(auth(u.token)).expect(400); // no wallet bound yet
   });
 });
+
+describe('role changes take effect immediately', () => {
+  it('lets a newly granted role work with the existing token, and a revoked role stop working', async () => {
+    const u = await h.login(newPhone());
+    await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(403);
+    await h.db.prisma.userRole.create({ data: { userId: u.userId, role: 'ARBITER' } });
+    await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(200); // same token, no re-login needed
+    await h.db.prisma.userRole.delete({ where: { userId_role: { userId: u.userId, role: 'ARBITER' } } });
+    await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(403); // revoked: effective at once
+  });
+});

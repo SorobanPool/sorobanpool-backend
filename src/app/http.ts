@@ -36,7 +36,13 @@ export class AuthGuard implements CanActivate {
     const claims = await this.s.tokens.verifyAccess(header.slice(7));
     req.user = { id: claims.sub, roles: claims.roles };
     const needed = this.reflector.getAllAndOverride<string[]>(ROLES_KEY, [ctx.getHandler(), ctx.getClass()]);
-    if (needed?.length && !needed.some((r) => req.user!.roles.includes(r))) throw new ForbiddenException('insufficient role');
+    if (needed?.length) {
+      // Roles come from the database, not the token: a grant takes effect at once and a revocation cannot be
+      // outlived by a token that was issued before it (access tokens last 15 minutes).
+      const current = (await this.s.prisma.userRole.findMany({ where: { userId: claims.sub } })).map((r) => r.role);
+      req.user.roles = current;
+      if (!needed.some((r) => current.includes(r))) throw new ForbiddenException('insufficient role');
+    }
     return true;
   }
 }

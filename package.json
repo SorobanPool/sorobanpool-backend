@@ -22,7 +22,8 @@
     "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
     "postinstall": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "sync:contracts": "scripts/sync-contract-artifacts.sh"
+    "sync:contracts": "scripts/sync-contract-artifacts.sh",
+    "dev:server": "nest build && node dist/dev/dev-server.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
