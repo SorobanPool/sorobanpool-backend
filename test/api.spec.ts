@@ -294,3 +294,30 @@ describe('disputes and arbiter', () => {
     expect(scValToNative(nativeToScVal(1))).toBeDefined();
   });
 });
+
+describe('trader profile and pool cards', () => {
+  it('stores the market and derives a cluster slug', async () => {
+    const u = await h.login(newPhone());
+    await h.http().get('/v1/me/profile').set(auth(u.token)).expect(200);
+    const r = await h.http().put('/v1/me/profile').set(auth(u.token)).send({ market: "Wuse Market, Zone 4", state: 'FCT', lga: 'Abuja Municipal' }).expect(200);
+    expect(r.body).toMatchObject({ market: 'Wuse Market, Zone 4', cluster: 'wuse_market_zone_4' });
+    await h.http().put('/v1/me/profile').set(auth(u.token)).send({ market: 'x' }).expect(400);
+    expect((await h.http().get('/v1/me/profile').set(auth(u.token))).body.cluster).toBe('wuse_market_zone_4');
+  });
+});
+
+describe('dev faucet', () => {
+  it('is registered off mainnet in development and absent in production and on mainnet', async () => {
+    const { AppModule } = await import('../src/app/app.module.js');
+    const { DevController } = await import('../src/app/dev.controller.js');
+    const has = (env: Partial<typeof h.s.env>) => (AppModule.forRoot({ ...h.s, env: { ...h.s.env, ...env } } as never).controllers ?? []).includes(DevController);
+    expect(has({ NODE_ENV: 'development', STELLAR_NETWORK: 'testnet' })).toBe(true);
+    expect(has({ NODE_ENV: 'production', STELLAR_NETWORK: 'testnet' })).toBe(false);
+    expect(has({ NODE_ENV: 'development', STELLAR_NETWORK: 'mainnet' })).toBe(false);
+  });
+  it('requires a signed-in user with a wallet', async () => {
+    await h.http().post('/v1/dev/faucet/start').expect(401);
+    const u = await h.login(newPhone());
+    await h.http().post('/v1/dev/faucet/start').set(auth(u.token)).expect(400); // no wallet bound yet
+  });
+});
