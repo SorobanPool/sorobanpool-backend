@@ -60,7 +60,7 @@ async function main(): Promise<void> {
     EVIDENCE_DIR: mkdtempSync(join(tmpdir(), 'sp-dev-evidence-')),
   } as NodeJS.ProcessEnv);
 
-  const prisma = createPrisma(env.DATABASE_URL);
+  const prisma = createPrisma(env.DATABASE_URL, 1); // PGlite serves a single connection
   const deployments = loadDeployments(env.DEPLOYMENTS_FILE);
   const services = buildServices(env, prisma, deployments, { store: new LocalObjectStore(env.EVIDENCE_DIR) });
   const server = new rpc.Server(env.RPC_URL);

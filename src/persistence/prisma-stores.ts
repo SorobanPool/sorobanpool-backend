@@ -11,8 +11,8 @@ import type { UsageStore } from '../relayer/allowlist.js';
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export function createPrisma(connectionString: string): PrismaClient {
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+export function createPrisma(connectionString: string, maxConnections?: number): PrismaClient {
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString, ...(maxConnections ? { max: maxConnections } : {}) }) });
 }
 
 /** Money is stored as USDC decimals (Decimal(38,7)); the app works in stroops (bigint). */
