@@ -276,11 +276,17 @@ describe('disputes and arbiter', () => {
 
     await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(403);
     const arb = await h.login(PHONE_ARBITER);
+    const evForArbiter = sign.body.evidenceId as string;
     await h.bindWallet(arb.token, Keypair.random());
     const proj = new Projector(new PrismaReadStore(h.db.prisma));
     const poolId = BigInt(Date.now()) * 10n + 1n;
     await proj.apply(decodeEvent(raw('group_buy', 'pool_new', u64(poolId), tup(a(Keypair.random().publicKey()), a(Keypair.random().publicKey()), bytes(1), bytes(2)), 20))!);
     await proj.apply(decodeEvent(raw('disputes', 'd_open', u64(77n), tup(u64(poolId), a(Keypair.random().publicKey()), i128(5_000_000n)), 21))!);
+    // Evidence the trader uploaded for pool 7 becomes readable by an arbiter only once that pool has an open dispute.
+    await h.db.prisma.dispute.create({ data: { id: 78n, poolId: 7n, openerAddress: 'GX', reason: 'Damaged', claimedUnits: 1, claimedAmount: '1', state: 'OPEN', openedAt: new Date(), slaDueAt: new Date(Date.now() + 1e6) } });
+    await h.http().get(`/v1/evidence/${evForArbiter}/url`).set(auth(arb.token)).expect(200);
+    await h.db.prisma.dispute.update({ where: { id: 78n }, data: { state: 'RESOLVED' } });
+    await h.http().get(`/v1/evidence/${evForArbiter}/url`).set(auth(arb.token)).expect(403);
     const q = await h.http().get('/v1/arbiter/queue').set(auth(arb.token)).expect(200);
     expect(q.body.map((d: { id: string }) => d.id)).toContain('77');
     const res = await h.http().post('/v1/arbiter/disputes/77/resolve/prepare').set(auth(arb.token)).send({ outcome: { kind: 'Split', bp: 2500 }, reasoning: 'Photos show partial damage; split 25/75.' }).expect(201);
