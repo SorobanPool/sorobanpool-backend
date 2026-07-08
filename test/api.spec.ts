@@ -374,3 +374,64 @@ describe('public product images', () => {
     await h.http().get(`/v1/images/${ev.body.evidenceId}`).expect(404);
   });
 });
+
+describe('reports: supplier statement and admin risk overview', () => {
+  async function settledPoolFor(supplierWallet: string, offerId: string) {
+    const proj = new Projector(new PrismaReadStore(h.db.prisma));
+    const id = BigInt(Date.now()) * 10n + 7n;
+    const hub = Keypair.random().publicKey();
+    const apply = (r: ReturnType<typeof raw>) => proj.apply(decodeEvent(r)!);
+    await h.db.prisma.pendingPool.create({ data: { hubHash: Buffer.alloc(32, Number(id % 200n)).toString('hex'), offerId, organizerAddress: hub, hubAddress: 'Gate', hubContact: '0803', pickupWindow: {}, fillDeadline: new Date(), shareSlug: `st${id}` } });
+    const hubBytes = nativeToScVal(Buffer.alloc(32, Number(id % 200n)));
+    await apply(raw('group_buy', 'pool_new', u64(id), tup(a(hub), a(supplierWallet), bytes(7), hubBytes), 10));
+    await apply(raw('group_buy', 'committed', u64(id), tup(a(Keypair.random().publicKey()), u32(100), i128(1_000_000_000n)), 11));
+    await apply(raw('group_buy', 'filled', u64(id), tup(u32(100), i128(10_000_000n)), 12));
+    await apply(raw('group_buy', 'accepted', u64(id), a(supplierWallet), 13));
+    await apply(raw('group_buy', 'delivered', u64(id), tup(u32(100), bytes(5)), 14));
+    // 100 units x 1 USDC = 100 USDC: supplier 98.5, platform 1, organizer 0.5
+    await apply(raw('group_buy', 'settled', u64(id), tup(i128(985_000_000n), i128(10_000_000n), i128(5_000_000n)), 15));
+    return id;
+  }
+
+  it('keeps indexing when a pool points at an offer that has no USDC tiers', async () => {
+    const s = await approvedSupplier();
+    const me = await h.http().get('/v1/me').set(auth(s.token));
+    const draft = await h.http().post('/v1/offers').set(auth(s.token)).send(offerBody()); // never published: tiersUsdc is empty
+    await expect(settledPoolFor(me.body.walletAddress, draft.body.id)).resolves.toBeDefined();
+  });
+
+  it('gives a supplier a statement with gross, fees and net, as JSON and CSV, only for their own pools', async () => {
+    const s = await approvedSupplier();
+    const me = await h.http().get('/v1/me').set(auth(s.token));
+    const offer = await h.http().post('/v1/offers').set(auth(s.token)).send(offerBody());
+    await h.http().post(`/v1/offers/${offer.body.id}/publish`).set(auth(s.token)).expect(200);
+    await settledPoolFor(me.body.walletAddress, offer.body.id);
+
+    const j = await h.http().get('/v1/suppliers/statement').set(auth(s.token)).expect(200);
+    expect(j.body.lines).toHaveLength(1);
+    expect(j.body.lines[0]).toMatchObject({ unitsDelivered: 100, gross: '1000000000', platformFee: '10000000', organizerFee: '5000000', net: '985000000' });
+    expect(j.body.total.net).toBe('985000000');
+    const csv = await h.http().get('/v1/suppliers/statement?format=csv').set(auth(s.token)).expect(200);
+    expect(csv.headers['content-type']).toMatch(/text\/csv/);
+    expect(csv.text.split('\n')[0]).toBe('pool_id,product,settled_at,units_delivered,gross_stroops,platform_fee_stroops,organizer_fee_stroops,net_stroops');
+    expect(csv.text).toContain('985000000');
+
+    const other = await approvedSupplier();
+    expect((await h.http().get('/v1/suppliers/statement').set(auth(other.token)).expect(200)).body.lines).toEqual([]);
+    const trader = await h.login(newPhone());
+    await h.http().get('/v1/suppliers/statement').set(auth(trader.token)).expect(403);
+  });
+
+  it('gives admins the risk overview and lists, and nobody else', async () => {
+    const admin = await h.login(PHONE_ADMIN);
+    const o = await h.http().get('/v1/admin/risk/overview').set(auth(admin.token)).expect(200);
+    expect(BigInt(o.body.gmv)).toBeGreaterThanOrEqual(1_000_000_000n); // the settled pool above: 100 units x 1 USDC
+    expect(o.body.poolsByState.Settled).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(o.body.flags)).toBe(true);
+    for (const path of ['/v1/admin/disputes', '/v1/admin/offers', '/v1/admin/pools?state=Settled', '/v1/admin/users?q=%2B234']) {
+      expect((await h.http().get(path).set(auth(admin.token)).expect(200)).body).toBeInstanceOf(Array);
+    }
+    const trader = await h.login(newPhone());
+    for (const path of ['/v1/admin/risk/overview', '/v1/admin/disputes', '/v1/admin/users']) await h.http().get(path).set(auth(trader.token)).expect(403);
+  });
+});

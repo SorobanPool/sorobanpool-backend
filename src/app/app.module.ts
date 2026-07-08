@@ -7,6 +7,7 @@ import { DevController } from './dev.controller.js';
 import { DisputesController } from './disputes.controller.js';
 import { ApiExceptionFilter, AuthGuard } from './http.js';
 import { PoolsController } from './pools.controller.js';
+import { ReportsController } from './reports.controller.js';
 import { SERVICES, type Services } from './services.js';
 import { TxController } from './tx.controller.js';
 import { UploadsController } from './uploads.controller.js';
@@ -18,7 +19,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController,
+        HealthController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController,
         // The test-money faucet exists only off mainnet and outside production.
         ...(services.env.NODE_ENV !== 'production' && services.env.STELLAR_NETWORK !== 'mainnet' ? [DevController] : []),
       ],
