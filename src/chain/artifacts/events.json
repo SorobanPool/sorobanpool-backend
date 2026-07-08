@@ -1,0 +1,218 @@
+[
+  {
+    "contract": "config",
+    "event": "params",
+    "key": "updated",
+    "data": "platform_fee_bp"
+  },
+  {
+    "contract": "config",
+    "event": "paused",
+    "key": "scope",
+    "data": "caller / true"
+  },
+  {
+    "contract": "config",
+    "event": "unpaused",
+    "key": "scope",
+    "data": "caller / true"
+  },
+  {
+    "contract": "config",
+    "event": "upgraded",
+    "key": "config",
+    "data": "wasm hash"
+  },
+  {
+    "contract": "registry",
+    "event": "user_reg",
+    "key": "user",
+    "data": "role"
+  },
+  {
+    "contract": "registry",
+    "event": "user_att",
+    "key": "user",
+    "data": "(role, level)"
+  },
+  {
+    "contract": "registry",
+    "event": "user_rev",
+    "key": "user",
+    "data": "(role, reason)"
+  },
+  {
+    "contract": "registry",
+    "event": "user_sus",
+    "key": "user",
+    "data": "(role, reason)"
+  },
+  {
+    "contract": "registry",
+    "event": "user_uns",
+    "key": "user",
+    "data": "role"
+  },
+  {
+    "contract": "rep",
+    "event": "rep_upd",
+    "key": "subject",
+    "data": "(role, event, tier)"
+  },
+  {
+    "contract": "bond",
+    "event": "deposit",
+    "key": "supplier",
+    "data": "amount"
+  },
+  {
+    "contract": "bond",
+    "event": "withdraw",
+    "key": "supplier",
+    "data": "amount"
+  },
+  {
+    "contract": "bond",
+    "event": "slashed",
+    "key": "supplier",
+    "data": "amount"
+  },
+  {
+    "contract": "group_buy",
+    "event": "pool_new",
+    "key": "pool id",
+    "data": "(organizer, supplier, offer_hash, hub_hash)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "committed",
+    "key": "pool id",
+    "data": "(member, units, amount)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "commit_up",
+    "key": "pool id",
+    "data": "(member, units, amount)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "withdrawn",
+    "key": "pool id",
+    "data": "(member, refund)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "tier_up",
+    "key": "pool id",
+    "data": "(tier_index, total_units)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "filled",
+    "key": "pool id",
+    "data": "(total_units, final_price)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "expired",
+    "key": "pool id",
+    "data": "total units"
+  },
+  {
+    "contract": "group_buy",
+    "event": "cancelled",
+    "key": "pool id",
+    "data": "caller"
+  },
+  {
+    "contract": "group_buy",
+    "event": "accepted",
+    "key": "pool id",
+    "data": "supplier"
+  },
+  {
+    "contract": "group_buy",
+    "event": "rejected",
+    "key": "pool id",
+    "data": "supplier"
+  },
+  {
+    "contract": "group_buy",
+    "event": "advance",
+    "key": "pool id",
+    "data": "amount"
+  },
+  {
+    "contract": "group_buy",
+    "event": "dispatch",
+    "key": "pool id",
+    "data": "optional waybill hash"
+  },
+  {
+    "contract": "group_buy",
+    "event": "failed",
+    "key": "pool id",
+    "data": "no_accept or no_deliv"
+  },
+  {
+    "contract": "group_buy",
+    "event": "delivered",
+    "key": "pool id",
+    "data": "(received_units, evidence_hash)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "shortfall",
+    "key": "pool id",
+    "data": "missing units"
+  },
+  {
+    "contract": "group_buy",
+    "event": "alloc_ok",
+    "key": "pool id",
+    "data": "received units (shortfall allocation finished; settle is now allowed)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "pickup",
+    "key": "pool id",
+    "data": "member"
+  },
+  {
+    "contract": "group_buy",
+    "event": "settled",
+    "key": "pool id",
+    "data": "(supplier_net, platform_fee, organizer_fee)"
+  },
+  {
+    "contract": "group_buy",
+    "event": "refund",
+    "key": "pool id",
+    "data": "(member, amount)"
+  },
+  {
+    "contract": "disputes",
+    "event": "d_open",
+    "key": "dispute id",
+    "data": "(pool_id, opener, claimed_amount)"
+  },
+  {
+    "contract": "disputes",
+    "event": "d_evid",
+    "key": "dispute id",
+    "data": "(party, evidence_hash)"
+  },
+  {
+    "contract": "disputes",
+    "event": "d_resolve",
+    "key": "dispute id",
+    "data": "(arbiter, reasoning_hash)"
+  },
+  {
+    "contract": "disputes",
+    "event": "d_timeout",
+    "key": "dispute id",
+    "data": "true"
+  }
+]
