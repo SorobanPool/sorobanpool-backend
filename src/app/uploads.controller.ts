@@ -75,6 +75,15 @@ export class UploadsController {
     return signUrl(this.secret(), 'GET', ev.objectKey, u.id, this.s.now().getTime());
   }
 
+  /** Public product photos only (kind PRODUCT): already resized, metadata-stripped WebP. Everything else needs a signed URL. */
+  @Public() @Get('images/:id') @Header('Cache-Control', 'public, max-age=86400, immutable')
+  async image(@Param('id') id: string) {
+    const ev = await this.s.prisma.evidence.findUnique({ where: { id } });
+    const bytes = ev && ev.kind === 'PRODUCT' && ev.sha256 ? await this.s.store.get('public', ev.objectKey) : null;
+    if (!ev || !bytes) throw new NotFoundException('image not found');
+    return new StreamableFile(bytes, { type: 'image/webp' });
+  }
+
   @Public() @Get('evidence/file') @Header('Cache-Control', 'private, no-store')
   async file(@Query() q: Record<string, string>) {
     const p = { key: q.key ?? '', u: q.u ?? '', e: Number(q.e), s: q.s ?? '' };
