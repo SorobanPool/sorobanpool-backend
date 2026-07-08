@@ -115,7 +115,7 @@ export class PoolsController {
     const rows = await this.s.prisma.pool.findMany({ where, orderBy: { id: 'desc' }, take: 100 });
     const cards = await Promise.all(rows.map(async (p) => {
       const { view } = await this.poolView(p.id);
-      return { id: view.id, state: view.state, shareSlug: view.shareSlug, offerId: view.offerId, totalUnits: view.totalUnits, moq: view.moq, progressPct: view.progressPct,
+      return { id: view.id, state: view.state, organizer: view.organizer, shareSlug: view.shareSlug, offerId: view.offerId, totalUnits: view.totalUnits, moq: view.moq, progressPct: view.progressPct,
         fillDeadline: view.fillDeadline, title: view.offer?.title ?? null, unitLabel: view.offer?.unitLabel ?? null, currentUnitPriceNaira: view.currentUnitPriceNaira, hub: view.hub.address };
     }));
     return cards;
