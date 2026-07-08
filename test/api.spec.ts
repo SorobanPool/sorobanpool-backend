@@ -171,6 +171,7 @@ describe('pools', () => {
     const preview = await h.http().get(`/v1/p/${p.prep.shareSlug}`).expect(200);
     expect(preview.body).toMatchObject({ state: 'Open', totalUnits: 150, moq: 100, hub: { address: 'Wuse Market Gate B' } });
     expect(preview.body.nextBreak.unitsToGo).toBe(50); // 200 - 150
+    expect(preview.body).toHaveProperty('filledAt', null); // set once the pool is filled; the supplier screen counts the accept window from it
     expect(preview.body.trustMessage).toMatch(/held safely/);
     expect(preview.body.currentUnitPriceNaira).toMatch(/^[\d,]+$/);
 
