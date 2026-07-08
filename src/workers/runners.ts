@@ -125,6 +125,8 @@ export function keeperChain(s: Services): KeeperChain {
 }
 
 export async function keeperTick(s: Services): Promise<{ ok: number; refused: number; errored: number }> {
+  // A final pool whose escrow has reached zero owes nobody anything: stop scanning it.
+  await s.prisma.pool.updateMany({ where: { state: { in: FINAL }, refundsPushed: false, escrowBalance: { lte: 0 } }, data: { refundsPushed: true } });
   const { pools, disputes } = await loadKeeperState(s);
   const actions = dueActions(pools, disputes, await keeperParams(s), Math.floor(s.now().getTime() / 1000));
   return runKeeper(keeperChain(s), actions, (a, e) => console.error(`[keeper] ${a.job} ${String(a.args[0])}: ${(e as Error).message}`));

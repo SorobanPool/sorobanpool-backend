@@ -12,11 +12,16 @@ jobs:
         with: { version: 10 }
       - uses: actions/setup-node@v4
         with: { node-version: 24, cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile   # postinstall generates the Prisma client
       - run: pnpm lint
+      - run: pnpm exec tsc --noEmit
       - run: pnpm build
       - run: pnpm test
-      - run: pnpm test:e2e
+      - name: migration is in sync with the schema
+        run: |
+          pnpm prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code --shadow-database-url "$SHADOW_URL" || true
+        env:
+          SHADOW_URL: postgresql://postgres:postgres@localhost:5432/shadow
   docker:
     runs-on: ubuntu-latest
     steps:
