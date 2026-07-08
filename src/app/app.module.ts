@@ -1,6 +1,7 @@
 import { type DynamicModule, Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { AdminController } from './admin.controller.js';
+import { AnchorController } from './anchor.controller.js';
 import { AuthController, UsersController } from './auth.controller.js';
 import { CatalogController } from './catalog.controller.js';
 import { DevController } from './dev.controller.js';
@@ -19,7 +20,7 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController,
+        HealthController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController,
         // The test-money faucet exists only off mainnet and outside production.
         ...(services.env.NODE_ENV !== 'production' && services.env.STELLAR_NETWORK !== 'mainnet' ? [DevController] : []),
       ],

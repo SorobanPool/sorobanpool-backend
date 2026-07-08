@@ -1,5 +1,5 @@
 import {
-  Account, authorizeEntry, BASE_FEE, Contract, Keypair, Operation, rpc, scValToNative, Transaction,
+  Account, Asset, authorizeEntry, BASE_FEE, Contract, Keypair, Operation, rpc, scValToNative, Transaction,
   TransactionBuilder, xdr,
 } from '@stellar/stellar-sdk';
 import { type ContractName, contractId, type Deployments } from './deployments.js';
@@ -141,6 +141,26 @@ export class ChainService {
         tx = await this.build(this.id(name), fn, args, signed);
       }
       return this.sendNow(tx);
+    });
+  }
+
+  /**
+   * Testnet/dev only: pays test USDC (issued by the admin account) to a wallet that already trusts the asset. It spends the
+   * same account as the fee sponsor, so it runs inside the same lock: two transactions must never share a sequence number.
+   */
+  async payUsdc(destination: string, stroops: bigint): Promise<void> {
+    if (stroops <= 0n) throw new Error('payout must be positive');
+    const asset = new Asset('USDC', this.o.deployments.admin);
+    const amount = `${stroops / 10_000_000n}.${(stroops % 10_000_000n).toString().padStart(7, '0')}`;
+    await this.lock.run(async () => {
+      const acct = await this.server.getAccount(this.sponsorAddress);
+      const tx = new TransactionBuilder(new Account(acct.accountId(), acct.sequenceNumber()), { fee: '10000', networkPassphrase: this.o.passphrase })
+        .addOperation(Operation.payment({ destination, asset, amount })).setTimeout(120).build();
+      tx.sign(this.o.sponsor);
+      const sent = await this.server.sendTransaction(tx);
+      if (sent.status === 'ERROR') throw new Error('payout submit failed');
+      const done = await this.server.pollTransaction(sent.hash, { attempts: 30 });
+      if (done.status !== rpc.Api.GetTransactionStatus.SUCCESS) throw new Error(`payout ${sent.hash} ${done.status}`);
     });
   }
 

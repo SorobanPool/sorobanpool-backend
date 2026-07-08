@@ -20,4 +20,4 @@ E2E_TESTNET=1 SPONSOR_SECRET=S... pnpm test:e2e                          # live 
 Docs: `docs/api.md`, `docs/decisions/`, `docs/runbooks/`.
 
 ## Not done yet (M2 scope gaps)
-BullMQ scheduling (ADR 0002), S3-compatible object storage (local filesystem store only), passkey smart wallets and passkey endpoints (ADR 0003), real KYC/KYB and SMS/WhatsApp providers, notification dispatch and reminder jobs, `offer-expiry`, `fx-refresh` and `reconcile` jobs, WebSocket realtime, rate limiting, OpenAPI generation, anchor/naira rails (M5), Testcontainers CI.
+BullMQ scheduling (ADR 0002), S3-compatible object storage (local filesystem store only), passkey smart wallets and passkey endpoints (ADR 0003), real KYC/KYB and SMS/WhatsApp providers, notification dispatch and reminder jobs, `offer-expiry`, `fx-refresh` and `reconcile` jobs, WebSocket realtime, rate limiting, OpenAPI generation, real anchor integration (only a mock exists, ADR 0005; no withdrawals), Testcontainers CI.
