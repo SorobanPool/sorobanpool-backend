@@ -1,0 +1,397 @@
+[
+  {
+    "code": 100,
+    "contract": "config",
+    "name": "NotAdmin"
+  },
+  {
+    "code": 101,
+    "contract": "config",
+    "name": "NotAdminOrGuardian"
+  },
+  {
+    "code": 102,
+    "contract": "config",
+    "name": "ParamsInvalid"
+  },
+  {
+    "code": 103,
+    "contract": "config",
+    "name": "ParamsExceedHardCap"
+  },
+  {
+    "code": 104,
+    "contract": "config",
+    "name": "AddressNotSet"
+  },
+  {
+    "code": 105,
+    "contract": "config",
+    "name": "NoGuardian"
+  },
+  {
+    "code": 200,
+    "contract": "registry",
+    "name": "AlreadyRegistered"
+  },
+  {
+    "code": 201,
+    "contract": "registry",
+    "name": "NotRegistered"
+  },
+  {
+    "code": 202,
+    "contract": "registry",
+    "name": "NotAttestor"
+  },
+  {
+    "code": 203,
+    "contract": "registry",
+    "name": "NotAdmin"
+  },
+  {
+    "code": 204,
+    "contract": "registry",
+    "name": "NotAuthorizedCaller"
+  },
+  {
+    "code": 205,
+    "contract": "registry",
+    "name": "InvalidLevel"
+  },
+  {
+    "code": 206,
+    "contract": "registry",
+    "name": "BadStatus"
+  },
+  {
+    "code": 300,
+    "contract": "group_buy",
+    "name": "NotInitialised"
+  },
+  {
+    "code": 301,
+    "contract": "group_buy",
+    "name": "Paused"
+  },
+  {
+    "code": 302,
+    "contract": "group_buy",
+    "name": "BadTerms"
+  },
+  {
+    "code": 303,
+    "contract": "group_buy",
+    "name": "CategoryNotAllowed"
+  },
+  {
+    "code": 304,
+    "contract": "group_buy",
+    "name": "NotVerified"
+  },
+  {
+    "code": 305,
+    "contract": "group_buy",
+    "name": "BadDeadline"
+  },
+  {
+    "code": 306,
+    "contract": "group_buy",
+    "name": "FeeTooHigh"
+  },
+  {
+    "code": 307,
+    "contract": "group_buy",
+    "name": "PoolTooLarge"
+  },
+  {
+    "code": 308,
+    "contract": "group_buy",
+    "name": "PoolNotFound"
+  },
+  {
+    "code": 309,
+    "contract": "group_buy",
+    "name": "WrongState"
+  },
+  {
+    "code": 310,
+    "contract": "group_buy",
+    "name": "DeadlinePassed"
+  },
+  {
+    "code": 311,
+    "contract": "group_buy",
+    "name": "DeadlineNotReached"
+  },
+  {
+    "code": 312,
+    "contract": "group_buy",
+    "name": "ZeroUnits"
+  },
+  {
+    "code": 313,
+    "contract": "group_buy",
+    "name": "NotAllowedMember"
+  },
+  {
+    "code": 314,
+    "contract": "group_buy",
+    "name": "ClusterMismatch"
+  },
+  {
+    "code": 315,
+    "contract": "group_buy",
+    "name": "OverMemberLimit"
+  },
+  {
+    "code": 316,
+    "contract": "group_buy",
+    "name": "OverMemberShare"
+  },
+  {
+    "code": 317,
+    "contract": "group_buy",
+    "name": "OverPoolMax"
+  },
+  {
+    "code": 318,
+    "contract": "group_buy",
+    "name": "OverTierCap"
+  },
+  {
+    "code": 319,
+    "contract": "group_buy",
+    "name": "TooManyMembers"
+  },
+  {
+    "code": 320,
+    "contract": "group_buy",
+    "name": "AlreadyCommitted"
+  },
+  {
+    "code": 321,
+    "contract": "group_buy",
+    "name": "NotCommitted"
+  },
+  {
+    "code": 322,
+    "contract": "group_buy",
+    "name": "WithdrawLocked"
+  },
+  {
+    "code": 323,
+    "contract": "group_buy",
+    "name": "WouldLowerTier"
+  },
+  {
+    "code": 324,
+    "contract": "group_buy",
+    "name": "BelowMoq"
+  },
+  {
+    "code": 325,
+    "contract": "group_buy",
+    "name": "NotOrganizer"
+  },
+  {
+    "code": 326,
+    "contract": "group_buy",
+    "name": "NotSupplier"
+  },
+  {
+    "code": 327,
+    "contract": "group_buy",
+    "name": "NotAdmin"
+  },
+  {
+    "code": 328,
+    "contract": "group_buy",
+    "name": "CannotCancel"
+  },
+  {
+    "code": 329,
+    "contract": "group_buy",
+    "name": "AcceptWindowPassed"
+  },
+  {
+    "code": 330,
+    "contract": "group_buy",
+    "name": "AcceptWindowOpen"
+  },
+  {
+    "code": 331,
+    "contract": "group_buy",
+    "name": "AdvanceDisabled"
+  },
+  {
+    "code": 332,
+    "contract": "group_buy",
+    "name": "AdvanceTooHigh"
+  },
+  {
+    "code": 333,
+    "contract": "group_buy",
+    "name": "DeliveryDeadlineNotPassed"
+  },
+  {
+    "code": 334,
+    "contract": "group_buy",
+    "name": "BadReceivedUnits"
+  },
+  {
+    "code": 335,
+    "contract": "group_buy",
+    "name": "ConfirmDeadlineNotPassed"
+  },
+  {
+    "code": 336,
+    "contract": "group_buy",
+    "name": "AlreadyConfirmed"
+  },
+  {
+    "code": 337,
+    "contract": "group_buy",
+    "name": "AllocationPending"
+  },
+  {
+    "code": 338,
+    "contract": "group_buy",
+    "name": "SettleTooEarly"
+  },
+  {
+    "code": 339,
+    "contract": "group_buy",
+    "name": "NothingToClaim"
+  },
+  {
+    "code": 340,
+    "contract": "group_buy",
+    "name": "NotDisputes"
+  },
+  {
+    "code": 341,
+    "contract": "group_buy",
+    "name": "FreezeTooLarge"
+  },
+  {
+    "code": 342,
+    "contract": "group_buy",
+    "name": "DisputeWindowClosed"
+  },
+  {
+    "code": 343,
+    "contract": "group_buy",
+    "name": "Overflow"
+  },
+  {
+    "code": 344,
+    "contract": "group_buy",
+    "name": "NotFinal"
+  },
+  {
+    "code": 345,
+    "contract": "group_buy",
+    "name": "SupplierIsParty"
+  },
+  {
+    "code": 400,
+    "contract": "disputes",
+    "name": "NotInitialised"
+  },
+  {
+    "code": 401,
+    "contract": "disputes",
+    "name": "NotAParty"
+  },
+  {
+    "code": 402,
+    "contract": "disputes",
+    "name": "BadClaim"
+  },
+  {
+    "code": 403,
+    "contract": "disputes",
+    "name": "NotFound"
+  },
+  {
+    "code": 404,
+    "contract": "disputes",
+    "name": "AlreadyResolved"
+  },
+  {
+    "code": 405,
+    "contract": "disputes",
+    "name": "NotArbiter"
+  },
+  {
+    "code": 406,
+    "contract": "disputes",
+    "name": "ArbiterConflict"
+  },
+  {
+    "code": 407,
+    "contract": "disputes",
+    "name": "SlaPassed"
+  },
+  {
+    "code": 408,
+    "contract": "disputes",
+    "name": "SlaNotReached"
+  },
+  {
+    "code": 409,
+    "contract": "disputes",
+    "name": "BadOutcome"
+  },
+  {
+    "code": 410,
+    "contract": "disputes",
+    "name": "TooMuchEvidence"
+  },
+  {
+    "code": 411,
+    "contract": "disputes",
+    "name": "Overflow"
+  },
+  {
+    "code": 500,
+    "contract": "supplier_bond",
+    "name": "InvalidAmount"
+  },
+  {
+    "code": 501,
+    "contract": "supplier_bond",
+    "name": "InsufficientFreeBond"
+  },
+  {
+    "code": 502,
+    "contract": "supplier_bond",
+    "name": "NotGroupBuy"
+  },
+  {
+    "code": 503,
+    "contract": "supplier_bond",
+    "name": "NotInitialised"
+  },
+  {
+    "code": 504,
+    "contract": "supplier_bond",
+    "name": "ReleaseExceedsReserved"
+  },
+  {
+    "code": 600,
+    "contract": "reputation",
+    "name": "NotAuthorizedCaller"
+  },
+  {
+    "code": 601,
+    "contract": "reputation",
+    "name": "UnknownEvent"
+  },
+  {
+    "code": 602,
+    "contract": "reputation",
+    "name": "NotInitialised"
+  }
+]
