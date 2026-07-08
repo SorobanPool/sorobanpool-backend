@@ -113,6 +113,18 @@ export class CatalogController {
     return { id, status: 'LIVE', offerHash: p.offerHash, ngnPerUsd: p.rate };
   }
 
+  /** Current NGN per USD from the configured sources, so the offer form can preview USDC prices. Blocked on divergence. */
+  @Public() @Get('fx/quote')
+  async fxQuote() {
+    try {
+      const q = combineQuotes(await this.s.fx.quotes(), this.s.now());
+      return { ngnPerUsd: q.rate, sources: q.sources.length, at: q.at.toISOString(), ttlSeconds: 60 };
+    } catch (e) {
+      if (e instanceof FxDivergenceError) throw new BadRequestException({ error: 'FX_DIVERGENCE', message: e.message });
+      throw e;
+    }
+  }
+
   @Public() @Get('offers')
   async list(@Query() q: Record<string, string | undefined>) {
     const now = this.s.now();

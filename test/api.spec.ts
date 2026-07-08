@@ -332,3 +332,14 @@ describe('role changes take effect immediately', () => {
     await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(403); // revoked: effective at once
   });
 });
+
+describe('fx quote', () => {
+  it('is public, returns the median rate, and is blocked when sources diverge', async () => {
+    const r = await h.http().get('/v1/fx/quote').expect(200);
+    expect(r.body).toMatchObject({ ngnPerUsd: 1502.5, sources: 2, ttlSeconds: 60 });
+    const original = h.s.fx;
+    h.s.fx = new StaticFxProvider([1500, 1700]);
+    expect((await h.http().get('/v1/fx/quote').expect(400)).body.error).toBe('FX_DIVERGENCE');
+    h.s.fx = original;
+  });
+});
