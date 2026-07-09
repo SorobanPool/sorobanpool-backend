@@ -43,6 +43,7 @@ export const envSchema = z.object({
   BOOTSTRAP_ADMIN_PHONES: z.string().default(''),
   BOOTSTRAP_ARBITER_PHONES: z.string().default(''),
   INDEXER_EMBEDDED: bool.default(false),
+  SPONSOR_MIN_XLM: z.coerce.number().positive().default(100),
   KEEPER_EMBEDDED: bool.default(false),
   EVIDENCE_DIR: z.string().default('.evidence'),
   /** Comma separated NGN-per-USD rates used by the static FX provider (testnet/dev). */

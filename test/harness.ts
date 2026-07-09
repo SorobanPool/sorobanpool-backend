@@ -34,6 +34,8 @@ export class FakeChain implements ChainPort {
   async latestLedger(): Promise<number> { return 1000; }
   paid: { wallet: string; stroops: bigint }[] = [];
   async payUsdc(wallet: string, stroops: bigint) { this.paid.push({ wallet, stroops }); }
+  sponsorBalanceStroops = 5_000n * 10_000_000n;
+  async sponsorBalance() { return this.sponsorBalanceStroops; }
   async keepAlive() { return { extended: [] as string[], missing: [] as string[] }; }
   async view<T>(_n: ContractName, fn: string): Promise<T> {
     if (fn === 'get_params') return { accept_window_secs: 86400n, delivery_grace_secs: 172800n, confirm_window_secs: 172800n, perishable_confirm_window_secs: 259200n, early_release_weight_bp: 6000, arbitration_sla_secs: 432000n } as T;

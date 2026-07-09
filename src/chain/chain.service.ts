@@ -32,6 +32,7 @@ class Mutex {
 
 export interface ChainOptions {
   rpcUrl: string;
+  horizonUrl?: string;
   passphrase: string;
   sponsor: Keypair;
   deployments: Deployments;
@@ -55,6 +56,16 @@ export class ChainService {
   }
   id(name: ContractName): string {
     return contractId(this.o.deployments, name);
+  }
+  /** Native (XLM) balance of the sponsor in stroops, read from Horizon; the sponsor pays every user's fee. */
+  async sponsorBalance(): Promise<bigint> {
+    if (!this.o.horizonUrl) throw new Error('horizonUrl not configured');
+    const res = await fetch(`${this.o.horizonUrl.replace(/\/$/, '')}/accounts/${this.sponsorAddress}`);
+    if (!res.ok) throw new Error(`horizon ${res.status}`);
+    const body = (await res.json()) as { balances: { asset_type: string; balance: string }[] };
+    const native = body.balances.find((b) => b.asset_type === 'native')?.balance ?? '0';
+    const [whole, frac = ''] = native.split('.');
+    return BigInt(whole!) * 10_000_000n + BigInt(frac.padEnd(7, '0').slice(0, 7));
   }
   async latestLedger(): Promise<number> {
     return (await this.server.getLatestLedger()).sequence;

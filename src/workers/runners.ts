@@ -8,6 +8,7 @@ import { PrismaCursorStore, PrismaEventSink, PrismaReadStore } from '../persiste
 import type { PoolState } from '../indexer/read-model.js';
 import { CONTRACT_NAMES } from '../chain/deployments.js';
 import type { Services } from '../app/services.js';
+import { checkSponsor, expireOffers } from './maintenance.js';
 
 /**
  * Soroban RPC adapter for the indexer. The Indexer treats `endLedger` as inclusive, but the RPC's `endLedger`
@@ -145,5 +146,15 @@ export function startTtlKeeper(s: Services, intervalMs = 3_600_000): Runner {
     const r = await s.chain.keepAlive();
     if (r.missing.length) console.error(`[ttl-extend] ALERT entries not found (archived?): ${r.missing.join(', ')}`);
     if (r.extended.length) console.log(`[ttl-extend] extended ${r.extended.join(', ')} in ${r.txHash}`);
+  });
+}
+
+/** Every 5 minutes: expire stale offers and page when the fee sponsor runs low. */
+export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
+  return every('maintenance', intervalMs, async () => {
+    const n = await expireOffers(s.prisma, s.now());
+    if (n) console.log(`[maintenance] expired ${n} offer(s)`);
+    const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);
+    if (h.low) console.error(`[maintenance] ALERT sponsor balance ${Number(h.balanceStroops) / 1e7} XLM is below ${s.env.SPONSOR_MIN_XLM}`);
   });
 }
