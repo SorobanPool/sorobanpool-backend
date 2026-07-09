@@ -1510,6 +1510,36 @@
         }
       }
     },
+    "/v1/pools/{id}/stream": {
+      "get": {
+        "operationId": "PoolStreamController.stream",
+        "tags": [
+          "PoolStream"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/v1/pools/prepare": {
       "post": {
         "operationId": "PoolsController.prepare",
