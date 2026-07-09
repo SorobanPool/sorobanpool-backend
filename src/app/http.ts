@@ -62,7 +62,9 @@ export function contractErrorCode(message: string): number | undefined {
 }
 
 @Catch()
+@Injectable()
 export class ApiExceptionFilter implements ExceptionFilter {
+  constructor(@Inject(SERVICES) private readonly s: Services) {}
   catch(e: unknown, host: ArgumentsHost): void {
     const res = host.switchToHttp().getResponse<{ status(n: number): { json(b: unknown): void } }>();
     const send = (status: number, body: Record<string, unknown>) => res.status(status).json(body);
@@ -82,6 +84,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const code = contractErrorCode(message);
     if (code !== undefined) return send(422, { error: 'CONTRACT_ERROR', contractCode: code, message: 'The transaction was refused by the contract' });
     console.error(e);
+    this.s.reporter.capture(e, 'http');
     return send(500, { error: 'INTERNAL', message: 'Something went wrong' });
   }
 }
