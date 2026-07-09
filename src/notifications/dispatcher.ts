@@ -59,6 +59,8 @@ export class NotificationProducer {
     const members = await this.db.commitment.findMany({ where: { poolId } });
     if (!members.length) return 0;
     const rate = await this.rate();
+    const tier = template === 'price_break' ? this.tierVars(ev.data, offer?.tiersNgn) : undefined;
+    if (template === 'price_break' && !tier) return 0; // already in the last tier, or tiers unknown: nothing useful to say
     const users = await this.db.user.findMany({ where: { walletAddress: { in: members.map((m) => m.memberAddress) } } });
     const byWallet = new Map(users.map((u) => [u.walletAddress, u]));
     const window = pool.pickupWindow as { from?: string } | null;
@@ -70,7 +72,7 @@ export class NotificationProducer {
       const refundUsdc = Math.max(0, Number(m.paid.toString()) - m.units * finalPrice);
       const vars: Record<string, string | number> = {
         product: offer?.title ?? 'your pool', units: m.units, naira: fmtNaira(template === 'pool_filled' ? finalPrice : m.paid, rate),
-        refund: fmtNaira(refundUsdc, rate), days: Math.max(1, Math.ceil((offer?.leadTimeHours ?? 24) / 24)), hub: pool.hubAddress, date: window?.from?.slice(0, 10) ?? 'the agreed date',
+        ...tier, refund: fmtNaira(refundUsdc, rate), days: Math.max(1, Math.ceil((offer?.leadTimeHours ?? 24) / 24)), hub: pool.hubAddress, date: window?.from?.slice(0, 10) ?? 'the agreed date',
       };
       await enqueue(this.db, u.id, template, vars, this.now());
       n++;
@@ -78,10 +80,21 @@ export class NotificationProducer {
     return n;
   }
 
+  /** `tier_up` data is (new tier index, total units). The message needs that tier's price and the gap to the next break. */
+  private tierVars(data: unknown, tiersJson: unknown): { naira: string; toGo: number } | undefined {
+    const [idx, total] = (data as unknown[]).map(Number) as [number, number];
+    const tiers = (Array.isArray(tiersJson) ? tiersJson : []) as { minUnits: number; priceNgn: string | number }[];
+    const here = tiers[idx];
+    const next = tiers[idx + 1];
+    if (!here || !next) return undefined;
+    return { naira: Number(here.priceNgn).toLocaleString('en-US'), toGo: Math.max(1, next.minUnits - total) };
+  }
+
   private templateFor(event: string): TemplateName | undefined {
     if (POOL_END[event]) return 'pool_expired';
     switch (event) {
       case 'filled': return 'pool_filled';
+      case 'tier_up': return 'price_break';
       case 'accepted': return 'supplier_accepted';
       case 'dispatch': return 'dispatched';
       case 'delivered': return 'ready_for_pickup';

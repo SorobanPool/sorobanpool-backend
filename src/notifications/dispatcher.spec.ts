@@ -88,4 +88,23 @@ describe('notification dispatcher', () => {
     expect(msg).toContain('Garri Sack go close in 10h');
     expect(msg).toContain('60 units');
   });
+
+  it('price_break: names the new tier price and the gap to the next break; silent in the last tier', async () => {
+    const wallet = 'GBREAKWALLET';
+    const u = await user('+2348020000006', 'EN', wallet);
+    const offer = await db().offer.create({ data: {
+      supplierId: u.id, title: 'Oil 25L', description: 'd', unitLabel: 'jerrycan', category: 'oil', images: [], fxQuoteId: 'q', moq: 100, maxUnits: 500, maxPerMember: 50, leadTimeHours: 24, deliveryAreas: [], validUntil: day, offerHash: 'h5', status: 'LIVE',
+      tiersNgn: [{ minUnits: 100, priceNgn: '1500' }, { minUnits: 200, priceNgn: '1350' }, { minUnits: 400, priceNgn: '1200' }], tiersUsdc: [] } });
+    await db().pool.create({ data: { id: 701n, offerId: offer.id, organizerAddress: 'o', supplierAddress: 's', hubAddress: 'h', hubContact: 'c', hubHash: 'h701', pickupWindow: {}, state: 'Open', totalUnits: 210, fillDeadline: day, shareSlug: 'slug701' } });
+    await db().commitment.create({ data: { poolId: 701n, memberAddress: wallet, units: 10, paid: '10' } });
+    const p = new NotificationProducer(db(), async () => 1500, () => day);
+    const ev = (data: unknown[]): DecodedEvent => ({ id: 'e', ledger: 1, closedAt: day, contractId: 'C', contract: 'group_buy', event: 'tier_up', key: 701n, data });
+    expect(await p.onEvent(ev([1, 210]))).toBe(1);
+    expect(await p.onEvent(ev([2, 410]))).toBe(0);
+    const s = sms();
+    await dispatchDue(db(), s, day);
+    const msg = s.sent.find((m) => m.phone === '+2348020000006')!.text;
+    expect(msg).toContain('N1,350/unit');
+    expect(msg).toContain('190 more units');
+  });
 });
