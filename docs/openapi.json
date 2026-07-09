@@ -571,6 +571,64 @@
         }
       }
     },
+    "/v1/auth/passkey": {
+      "get": {
+        "operationId": "PasskeyController.list",
+        "tags": [
+          "Passkey"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/passkey/{id}": {
+      "delete": {
+        "operationId": "PasskeyController.remove",
+        "tags": [
+          "Passkey"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/v1/auth/passkey/login/options": {
       "post": {
         "operationId": "PasskeyController.loginOptions",

@@ -66,3 +66,39 @@ describe('passkey sign-in', () => {
     expect(r.body.error).toBe('PASSKEY_CHALLENGE_INVALID');
   });
 });
+
+describe('managing passkeys', () => {
+  let h: Harness;
+  beforeAll(async () => { h = await startHarness(); });
+  afterAll(async () => { await h.close(); });
+  const rp = 'localhost';
+  const origin = 'http://localhost:3001';
+  const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+  async function register(token: string, a: SoftAuthenticator) {
+    const o = await h.http().post('/v1/auth/passkey/register/options').set(auth(token)).send({});
+    return h.http().post('/v1/auth/passkey/register/verify').set(auth(token)).send({ challengeId: o.body.challengeId, response: a.register(o.body.options.challenge) });
+  }
+
+  it('lists only the signed-in user\'s own passkeys, and removal is scoped to the owner', async () => {
+    const alice = await h.login('+2348031000005');
+    const bob = await h.login('+2348031000006');
+    await register(alice.token, new SoftAuthenticator(rp, origin));
+    await register(alice.token, new SoftAuthenticator(rp, origin));
+    await register(bob.token, new SoftAuthenticator(rp, origin));
+
+    const aliceList = await h.http().get('/v1/auth/passkey').set(auth(alice.token));
+    expect(aliceList.status).toBe(200);
+    expect(aliceList.body).toHaveLength(2);
+    const bobList = await h.http().get('/v1/auth/passkey').set(auth(bob.token));
+    expect(bobList.body).toHaveLength(1);
+
+    // Bob cannot remove Alice's passkey.
+    const forbidden = await h.http().delete(`/v1/auth/passkey/${aliceList.body[0].id}`).set(auth(bob.token));
+    expect(forbidden.status).toBe(403);
+
+    const removed = await h.http().delete(`/v1/auth/passkey/${aliceList.body[0].id}`).set(auth(alice.token));
+    expect(removed.status).toBe(200);
+    expect((await h.http().get('/v1/auth/passkey').set(auth(alice.token))).body).toHaveLength(1);
+    expect((await h.http().delete(`/v1/auth/passkey/${aliceList.body[0].id}`).set(auth(alice.token))).status).toBe(404);
+  });
+});
