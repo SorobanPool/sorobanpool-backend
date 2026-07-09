@@ -10,7 +10,7 @@ import { TokenService } from '../auth/token.service.js';
 import { SponsorshipPolicy } from '../relayer/allowlist.js';
 import type { FxSourceQuote } from '../fx/fx.js';
 import { MockAnchor, type AnchorProvider } from '../anchor/anchor.js';
-import { LocalObjectStore, type ObjectStore } from '../evidence/store.js';
+import { LocalObjectStore, S3ObjectStore, type ObjectStore } from '../evidence/store.js';
 import { PrismaOtpStore, PrismaSessionStore, PrismaUsageStore } from '../persistence/prisma-stores.js';
 
 export const SERVICES = Symbol('SERVICES');
@@ -81,7 +81,12 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
   const services: Services = {
     sms,
     env, prisma, deployments, chain, attestor, now,
-    store: o.store ?? new LocalObjectStore(env.EVIDENCE_DIR),
+    store: o.store ?? (env.OBJECT_STORE === 's3'
+      ? new S3ObjectStore({
+        endpoint: env.S3_ENDPOINT, region: env.S3_REGION, accessKeyId: resolveSecret(env.S3_ACCESS_KEY_REF, env.NODE_ENV), secretAccessKey: resolveSecret(env.S3_SECRET_KEY_REF, env.NODE_ENV),
+        buckets: { public: env.S3_BUCKET_PUBLIC, evidence: env.S3_BUCKET_EVIDENCE },
+      })
+      : new LocalObjectStore(env.EVIDENCE_DIR)),
     otp: new OtpService(new PrismaOtpStore(prisma), sms, env.OTP_HMAC_SECRET, now, o.otpRandom),
     tokens: new TokenService(env.JWT_SECRET, new PrismaSessionStore(prisma), now),
     policy: new SponsorshipPolicy(contractNameMap(deployments), new PrismaUsageStore(prisma), undefined, now),
