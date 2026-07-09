@@ -1,5 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AdminController } from './admin.controller.js';
 import { AnchorController } from './anchor.controller.js';
 import { AuthController, UsersController } from './auth.controller.js';
@@ -13,6 +13,7 @@ import { ReportsController } from './reports.controller.js';
 import { SERVICES, type Services } from './services.js';
 import { TxController } from './tx.controller.js';
 import { UploadsController } from './uploads.controller.js';
+import { METRICS, Metrics, MetricsController, MetricsInterceptor } from '../observability/metrics.js';
 import { HealthController } from '../health/health.controller.js';
 
 @Module({})
@@ -21,12 +22,14 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
-        HealthController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController,
+        HealthController, MetricsController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController,
         // The test-money faucet exists only off mainnet and outside production.
         ...(services.env.NODE_ENV !== 'production' && services.env.STELLAR_NETWORK !== 'mainnet' ? [DevController] : []),
       ],
       providers: [
         { provide: SERVICES, useValue: services },
+        { provide: METRICS, useValue: new Metrics() },
+        { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
         { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ApiExceptionFilter },

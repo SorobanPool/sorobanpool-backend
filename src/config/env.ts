@@ -43,6 +43,7 @@ export const envSchema = z.object({
   BOOTSTRAP_ADMIN_PHONES: z.string().default(''),
   BOOTSTRAP_ARBITER_PHONES: z.string().default(''),
   INDEXER_EMBEDDED: bool.default(false),
+  METRICS_TOKEN: z.string().min(16).optional(),
   RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(300),
   SPONSOR_MIN_XLM: z.coerce.number().positive().default(100),
   KEEPER_EMBEDDED: bool.default(false),
