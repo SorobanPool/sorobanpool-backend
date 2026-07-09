@@ -90,3 +90,29 @@ export class NotificationProducer {
     }
   }
 }
+
+export const REMINDER_WINDOW_MS = 24 * 3_600_000;
+
+/**
+ * Open pools within 24h of their deadline that still lack the minimum get one reminder per member.
+ * The pool is marked first (compare-and-set), so concurrent or repeated runs cannot double-send.
+ */
+export async function queueDeadlineReminders(db: Db, now: Date): Promise<number> {
+  const pools = await db.pool.findMany({ where: { state: 'Open', deadlineRemindedAt: null, fillDeadline: { gt: now, lte: new Date(now.getTime() + REMINDER_WINDOW_MS) } } });
+  let queued = 0;
+  for (const pool of pools) {
+    const claimed = await db.pool.updateMany({ where: { id: pool.id, deadlineRemindedAt: null }, data: { deadlineRemindedAt: now } });
+    if (claimed.count === 0) continue;
+    const offer = await db.offer.findUnique({ where: { id: pool.offerId } });
+    const toGo = (offer?.moq ?? 0) - pool.totalUnits;
+    if (!offer || toGo <= 0) continue;
+    const members = await db.commitment.findMany({ where: { poolId: pool.id } });
+    const users = await db.user.findMany({ where: { walletAddress: { in: members.map((m) => m.memberAddress) } } });
+    const hours = Math.max(1, Math.ceil((pool.fillDeadline.getTime() - now.getTime()) / 3_600_000));
+    for (const u of users) {
+      await enqueue(db, u.id, 'deadline_soon', { product: offer.title, hours, toGo }, now);
+      queued++;
+    }
+  }
+  return queued;
+}
