@@ -59,6 +59,15 @@ model Passkey {
   user         User     @relation(fields: [userId], references: [id])
 }
 
+/// One-shot WebAuthn challenge (registration is bound to a user; usernameless login is not).
+model PasskeyChallenge {
+  id        String   @id @default(cuid())
+  userId    String?
+  challenge String
+  kind      String
+  expiresAt DateTime
+}
+
 model OtpChallenge {
   id        String   @id @default(cuid())
   phone     String

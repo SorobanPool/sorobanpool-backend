@@ -9,6 +9,7 @@ import { DisputesController } from './disputes.controller.js';
 import { ApiExceptionFilter, AuthGuard } from './http.js';
 import { buildOpenApi, OPENAPI_DOC, OpenApiController } from './openapi.js';
 import { RateLimitGuard } from './rate-limit.js';
+import { PasskeyController } from './passkey.controller.js';
 import { PoolsController } from './pools.controller.js';
 import { ReportsController } from './reports.controller.js';
 import { SERVICES, type Services } from './services.js';
@@ -19,7 +20,7 @@ import { HealthController } from '../health/health.controller.js';
 
 export function appControllers(services: Services) {
   return [
-    HealthController, MetricsController, AuthController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController,
+    HealthController, MetricsController, AuthController, PasskeyController, UsersController, CatalogController, PoolsController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController,
     // The test-money faucet exists only off mainnet and outside production.
     ...(services.env.NODE_ENV !== 'production' && services.env.STELLAR_NETWORK !== 'mainnet' ? [DevController] : []),
   ];
