@@ -287,6 +287,13 @@ model Notification {
   payload  Json
   status   String
   sentAt   DateTime?
+  /// Not sent before this time (quiet hours, retry backoff).
+  runAfter  DateTime  @default(now())
+  attempts  Int       @default(0)
+  lastError String?
+  createdAt DateTime  @default(now())
+
+  @@index([status, runAfter])
 }
 
 model AuditLog {

@@ -1,4 +1,4 @@
-import { decodeEvent, type RawEvent } from './decode.js';
+import { decodeEvent, type DecodedEvent, type RawEvent } from './decode.js';
 import type { Projector } from './projector.js';
 
 export const LAG_ALERT_LEDGERS = 20;
@@ -37,6 +37,8 @@ export class Indexer {
     private readonly contractIds: string[],
     private readonly startLedger: number,
     private readonly batch = 1000,
+    /** Runs after an event is newly committed (never on replays). Failures are logged, not fatal: at-most-once side effects. */
+    private readonly onApplied?: (ev: DecodedEvent) => Promise<unknown>,
   ) {}
 
   /** One poll: fetch from the cursor, store raw, project, advance. Safe to call repeatedly. */
@@ -55,7 +57,10 @@ export class Indexer {
       for (const raw of raws) {
         await this.sink.saveRaw(raw);
         const ev = decodeEvent(raw);
-        if (ev && (await this.projector.apply(ev))) processed++;
+        if (ev && (await this.projector.apply(ev))) {
+          processed++;
+          if (this.onApplied) await this.onApplied(ev).catch((e: Error) => console.error(`[indexer] onApplied ${ev.contract}.${ev.event}: ${e.message}`));
+        }
       }
       await this.cursor.set(to);
     }

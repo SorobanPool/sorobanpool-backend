@@ -1,0 +1,6 @@
+ALTER TABLE "Notification" ADD COLUMN "runAfter" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN "attempts" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "lastError" TEXT,
+ADD COLUMN "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+CREATE INDEX "Notification_status_runAfter_idx" ON "Notification"("status", "runAfter");
