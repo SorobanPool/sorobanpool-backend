@@ -10,7 +10,7 @@ import { CONTRACT_NAMES } from '../chain/deployments.js';
 import type { Services } from '../app/services.js';
 import { combineQuotes } from '../fx/fx.js';
 import { dispatchDue, NotificationProducer, queueDeadlineReminders } from '../notifications/dispatcher.js';
-import { checkSponsor, expireOffers } from './maintenance.js';
+import { checkSponsor, expireOffers, MismatchTracker, reconcilePools } from './maintenance.js';
 
 /**
  * Soroban RPC adapter for the indexer. The Indexer treats `endLedger` as inclusive, but the RPC's `endLedger`
@@ -155,11 +155,14 @@ export function startTtlKeeper(s: Services, intervalMs = 3_600_000): Runner {
 
 /** Every 5 minutes: expire stale offers and page when the fee sponsor runs low. */
 export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
+  const tracker = new MismatchTracker();
   return every('maintenance', intervalMs, async () => {
     const n = await expireOffers(s.prisma, s.now());
     if (n) console.log(`[maintenance] expired ${n} offer(s)`);
     const reminded = await queueDeadlineReminders(s.prisma, s.now());
     if (reminded) console.log(`[maintenance] queued ${reminded} deadline reminder(s)`);
+    const bad = tracker.persistent(await reconcilePools(s.prisma, s.chain as never, A.poolOnly));
+    for (const m of bad) console.error(`[reconcile] ALERT pool ${m.poolId} ${m.field}: db=${m.db} chain=${m.chain}`);
     const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);
     if (h.low) console.error(`[maintenance] ALERT sponsor balance ${Number(h.balanceStroops) / 1e7} XLM is below ${s.env.SPONSOR_MIN_XLM}`);
   });
