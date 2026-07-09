@@ -80,7 +80,7 @@ export async function startHarness(over: Record<string, string> = {}): Promise<H
     DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x', S3_ENDPOINT: 'http://x', S3_BUCKET_PUBLIC: 'p', S3_BUCKET_EVIDENCE: 'e', S3_ACCESS_KEY_REF: 'a', S3_SECRET_KEY_REF: 'b',
     JWT_SECRET: 'j'.repeat(32), JWT_REFRESH_SECRET: 'r'.repeat(32), OTP_HMAC_SECRET: 'o'.repeat(32), ENCRYPTION_KEY_ID: 'k', RPC_URL: 'http://rpc', HORIZON_URL: 'http://h',
     NETWORK_PASSPHRASE: Networks.TESTNET, SPONSOR_SECRET_REF: 'literal:x', ATTESTOR_SECRET_REF: 'literal:x', WEBAUTHN_RP_ID: 'localhost', WEBAUTHN_ORIGIN: 'http://localhost:3001',
-    PUBLIC_APP_URL: 'http://localhost:3001', OTP_DEV_ECHO: 'true', BOOTSTRAP_ADMIN_PHONES: PHONE_ADMIN, BOOTSTRAP_ARBITER_PHONES: PHONE_ARBITER, FX_STATIC: '1500,1505', ...over,
+    PUBLIC_APP_URL: 'http://localhost:3001', OTP_DEV_ECHO: 'true', BOOTSTRAP_ADMIN_PHONES: PHONE_ADMIN, BOOTSTRAP_ARBITER_PHONES: PHONE_ARBITER, FX_STATIC: '1500,1505', RATE_LIMIT_PER_MIN: '1000000', ...over,
   } as NodeJS.ProcessEnv);
   const chain = new FakeChain();
   const attestor = Keypair.random();
