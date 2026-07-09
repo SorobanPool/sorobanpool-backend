@@ -16,6 +16,7 @@
     "start:prod": "node dist/main",
     "lint": "oxlint --type-aware src/ test/",
     "test": "vitest run",
+    "openapi": "UPDATE_OPENAPI=1 vitest run src/app/openapi.spec.ts",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",

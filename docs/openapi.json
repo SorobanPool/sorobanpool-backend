@@ -1,0 +1,1668 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SorobanPool API",
+    "version": "1.0.0",
+    "description": "Bearer JWT unless an operation is public. Errors are {error, message}."
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/v1/admin/audit": {
+      "get": {
+        "operationId": "AdminController.auditLog",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/disputes": {
+      "get": {
+        "operationId": "ReportsController.disputes",
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/offers": {
+      "get": {
+        "operationId": "ReportsController.offers",
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/offers/{id}/takedown": {
+      "post": {
+        "operationId": "AdminController.takedown",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/pools": {
+      "get": {
+        "operationId": "ReportsController.pools",
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/risk/overview": {
+      "get": {
+        "operationId": "ReportsController.overview",
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/suppliers": {
+      "get": {
+        "operationId": "AdminController.suppliers",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/suppliers/{userId}/decision": {
+      "post": {
+        "operationId": "AdminController.decide",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/users": {
+      "get": {
+        "operationId": "ReportsController.users",
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/users/{userId}/attest": {
+      "post": {
+        "operationId": "AdminController.attestUser",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/admin/users/{userId}/roles": {
+      "post": {
+        "operationId": "AdminController.grant",
+        "tags": [
+          "Admin"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ADMIN"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/anchor/deposit/start": {
+      "post": {
+        "operationId": "AnchorController.start",
+        "tags": [
+          "Anchor"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/anchor/transfers/{id}": {
+      "get": {
+        "operationId": "AnchorController.transfer",
+        "tags": [
+          "Anchor"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/arbiter/disputes/{id}": {
+      "get": {
+        "operationId": "DisputesController.arbiterView",
+        "tags": [
+          "Disputes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ARBITER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/arbiter/disputes/{id}/resolve/prepare": {
+      "post": {
+        "operationId": "DisputesController.resolve",
+        "tags": [
+          "Disputes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ARBITER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/arbiter/queue": {
+      "get": {
+        "operationId": "DisputesController.queue",
+        "tags": [
+          "Disputes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ARBITER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "operationId": "AuthController.logout",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/otp/request": {
+      "post": {
+        "operationId": "AuthController.request",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/otp/verify": {
+      "post": {
+        "operationId": "AuthController.verify",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "operationId": "AuthController.refresh",
+        "tags": [
+          "Auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/bonds/deposit/prepare": {
+      "post": {
+        "operationId": "DisputesController.deposit",
+        "tags": [
+          "Disputes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/bonds/me": {
+      "get": {
+        "operationId": "DisputesController.myBond",
+        "tags": [
+          "Disputes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/bonds/withdraw/prepare": {
+      "post": {
+        "operationId": "DisputesController.withdraw",
+        "tags": [
+          "Disputes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/disputes": {
+      "get": {
+        "operationId": "DisputesController.mine",
+        "tags": [
+          "Disputes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/disputes/{id}": {
+      "get": {
+        "operationId": "DisputesController.one",
+        "tags": [
+          "Disputes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/disputes/{id}/evidence/prepare": {
+      "post": {
+        "operationId": "DisputesController.addEvidence",
+        "tags": [
+          "Disputes"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/disputes/prepare": {
+      "post": {
+        "operationId": "DisputesController.open",
+        "tags": [
+          "Disputes"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/evidence/{id}/url": {
+      "get": {
+        "operationId": "UploadsController.readUrl",
+        "tags": [
+          "Uploads"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/evidence/file": {
+      "get": {
+        "operationId": "UploadsController.file",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/fx/quote": {
+      "get": {
+        "operationId": "CatalogController.fxQuote",
+        "tags": [
+          "Catalog"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/health": {
+      "get": {
+        "operationId": "HealthController.check",
+        "tags": [
+          "Health"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/images/{id}": {
+      "get": {
+        "operationId": "UploadsController.image",
+        "tags": [
+          "Uploads"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "UsersController.me",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "UsersController.update",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/me/profile": {
+      "put": {
+        "operationId": "UsersController.setProfile",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      },
+      "get": {
+        "operationId": "UsersController.getProfile",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/metrics": {
+      "get": {
+        "operationId": "MetricsController.scrape",
+        "tags": [
+          "Metrics"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/offers": {
+      "post": {
+        "operationId": "CatalogController.create",
+        "tags": [
+          "Catalog"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      },
+      "get": {
+        "operationId": "CatalogController.list",
+        "tags": [
+          "Catalog"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/offers/{id}": {
+      "patch": {
+        "operationId": "CatalogController.update",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      },
+      "get": {
+        "operationId": "CatalogController.one",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/offers/{id}/publish": {
+      "post": {
+        "operationId": "CatalogController.publish",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/offers/{id}/refresh-fx": {
+      "post": {
+        "operationId": "CatalogController.refresh",
+        "tags": [
+          "Catalog"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/openapi.json": {
+      "get": {
+        "operationId": "OpenApiController.get",
+        "tags": [
+          "OpenApi"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/p/{slug}": {
+      "get": {
+        "operationId": "PoolsController.preview",
+        "tags": [
+          "Pools"
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/pools": {
+      "get": {
+        "operationId": "PoolsController.list",
+        "tags": [
+          "Pools"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/pools/{id}": {
+      "get": {
+        "operationId": "PoolsController.get",
+        "tags": [
+          "Pools"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/pools/{id}/{action}/prepare": {
+      "post": {
+        "operationId": "PoolsController.act",
+        "tags": [
+          "Pools"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/pools/{id}/quote": {
+      "get": {
+        "operationId": "PoolsController.quote",
+        "tags": [
+          "Pools"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/pools/{id}/sharecard.png": {
+      "get": {
+        "operationId": "PoolsController.shareCard",
+        "tags": [
+          "Pools"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/pools/prepare": {
+      "post": {
+        "operationId": "PoolsController.prepare",
+        "tags": [
+          "Pools"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "ORGANIZER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/registry/register/prepare": {
+      "post": {
+        "operationId": "AdminController.register",
+        "tags": [
+          "Admin"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/suppliers/apply": {
+      "post": {
+        "operationId": "UsersController.apply",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/suppliers/me": {
+      "get": {
+        "operationId": "UsersController.mySupplier",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/suppliers/statement": {
+      "get": {
+        "operationId": "ReportsController.statement",
+        "tags": [
+          "Reports"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "x-roles": [
+          "SUPPLIER"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/tx/submit": {
+      "post": {
+        "operationId": "TxController.submit",
+        "tags": [
+          "Tx"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/uploads/put": {
+      "put": {
+        "operationId": "UploadsController.put",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/uploads/sign": {
+      "post": {
+        "operationId": "UploadsController.sign",
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/wallets": {
+      "post": {
+        "operationId": "UsersController.bind",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/wallets/challenge": {
+      "get": {
+        "operationId": "UsersController.challenge",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    }
+  }
+}
