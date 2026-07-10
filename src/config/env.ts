@@ -52,7 +52,8 @@ export const envSchema = z.object({
   EVIDENCE_DIR: z.string().default('.evidence'),
   /** Comma separated NGN-per-USD rates used by the static FX provider (testnet/dev). */
   FX_STATIC: z.string().default('1500,1505'),
-  INDEXER_START_LEDGER: z.coerce.number().int().default(1),
+  /** First ledger for a fresh indexer. Unset = the oldest ledger the RPC still retains (see Indexer StartLedger). */
+  INDEXER_START_LEDGER: z.coerce.number().int().positive().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
