@@ -3,6 +3,15 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule: { interval: weekly }
+    groups:
+      # One PR per week for routine dev-tooling bumps instead of one per package.
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # Types must match the Node major CI and the Docker image run on (24), not the newest Node.
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
