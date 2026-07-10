@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { existsSync } from 'node:fs';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
@@ -10,7 +11,13 @@ import { loadEnv } from './config/env.js';
 import { createPrisma } from './persistence/prisma-stores.js';
 import { startIndexer, startKeeper, startMaintenance, startNotifier, startTtlKeeper } from './workers/runners.js';
 
+/** Loads `.env` for local development (Node's built-in parser). Shell variables win; production injects env directly. */
+function loadDotEnv(file = '.env'): void {
+  if (process.env.NODE_ENV !== 'production' && existsSync(file)) process.loadEnvFile(file);
+}
+
 async function bootstrap(): Promise<void> {
+  loadDotEnv();
   const env = loadEnv();
   const prisma = createPrisma(env.DATABASE_URL);
   const services = buildServices(env, prisma, loadDeployments(env.DEPLOYMENTS_FILE));

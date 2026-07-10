@@ -2,12 +2,22 @@
 
 NestJS backend for SorobanPool (API, workers, indexer, keeper, relayer). **Buy together. Pay on delivery.** Built on Stellar.
 
+## Quickstart (about 5 minutes)
+Needs Node 24, pnpm 10, Docker (or a local Postgres 16+ and Redis 7) and the [Stellar CLI](https://developers.stellar.org/docs/tools/cli).
 ```
-cp .env.example .env
+pnpm install
+cp .env.example .env                       # loaded at startup; shell variables win
 docker compose up -d postgres redis minio
-pnpm install && pnpm start:dev     # GET /health
-pnpm lint && pnpm build && pnpm test && pnpm test:e2e
+stellar keys generate sp-dev --network testnet --fund
+export SPONSOR_SECRET=$(stellar keys show sp-dev)   # pays fees on testnet; never commit it
+pnpm prisma:migrate:deploy
+pnpm start:dev                             # curl localhost:3000/v1/health -> {"status":"ok","role":"api"}
 ```
+The example `.env` runs the API with the indexer and keeper embedded, against the contracts already deployed on
+testnet (`deployments/testnet.json`, vendored by `scripts/sync-contract-artifacts.sh`). A fresh indexer starts inside
+the RPC retention window and catches up (see `docs/runbooks/indexer-backfill.md`).
+
+For a database-free run against testnet (in-process Postgres, used by the frontend E2E): `SPONSOR_SECRET=S... pnpm dev:server`.
 One codebase, role chosen by `ROLE=api|worker|indexer`. Status: feature-complete for the testnet build — verified end to end on Stellar testnet (`test/e2e/`, plus the frontend's Playwright acceptance suites). Not production-ready: see "Not done yet".
 
 The product and architecture brief (source of truth): [sorobanpool-contracts/docs/brief.md](https://github.com/SorobanPool/sorobanpool-contracts/blob/main/docs/brief.md). Sibling repos: [contracts](https://github.com/SorobanPool/sorobanpool-contracts), [backend](https://github.com/SorobanPool/sorobanpool-backend), [frontend](https://github.com/SorobanPool/sorobanpool-frontend).
