@@ -70,7 +70,7 @@ export function startIndexer(s: Services, server: rpc.Server, intervalMs = 5000)
   const ids = CONTRACT_NAMES.map((n) => s.deployments.contracts[n].id);
   const producer = new NotificationProducer(s.prisma, async () => combineQuotes(await s.fx.quotes(), s.now()).rate, s.now);
   const indexer = new Indexer(
-    rpcPort(server), new PrismaCursorStore(s.prisma), new PrismaEventSink(s.prisma), new Projector(new PrismaReadStore(s.prisma)), ids, s.env.INDEXER_START_LEDGER ?? 'oldest', 1000,
+    rpcPort(server), new PrismaCursorStore(s.prisma), new PrismaEventSink(s.prisma), new Projector(new PrismaReadStore(s.prisma)), ids, s.env.INDEXER_START_LEDGER ?? (s.deployments.deployedAtLedger ? { from: s.deployments.deployedAtLedger } : 'oldest'), 1000,
     (ev) => producer.onEvent(ev),
   );
   const runner = every('indexer', intervalMs, async () => {
@@ -147,9 +147,17 @@ export function startKeeper(s: Services, intervalMs = 15_000): Runner {
 }
 
 /** Hourly: extend contract instance/code TTL before they lapse. A missing entry is a paging-level problem. */
+/** Wallet instances checked per run, after the core contracts; the batch rotates through every wallet. */
+export const WALLETS_PER_TTL_RUN = 25;
+
 export function startTtlKeeper(s: Services, intervalMs = 3_600_000): Runner {
+  let offset = 0;
   return every('ttl-extend', intervalMs, async () => {
-    const r = await s.chain.keepAlive();
+    const batch = await s.prisma.user.findMany({
+      where: { walletAddress: { startsWith: 'C' } }, select: { walletAddress: true }, orderBy: { id: 'asc' }, skip: offset, take: WALLETS_PER_TTL_RUN,
+    });
+    offset = batch.length < WALLETS_PER_TTL_RUN ? 0 : offset + batch.length;
+    const r = await s.chain.keepAlive(batch.map((b) => b.walletAddress!));
     if (r.missing.length) console.error(`[ttl-extend] ALERT entries not found (archived?): ${r.missing.join(', ')}`);
     if (r.extended.length) console.log(`[ttl-extend] extended ${r.extended.join(', ')} in ${r.txHash}`);
   }, s.reporter);

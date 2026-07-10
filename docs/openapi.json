@@ -1839,6 +1839,30 @@
           }
         }
       }
+    },
+    "/v1/wallets/passkey": {
+      "post": {
+        "operationId": "UsersController.createPasskeyWallet",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
     }
   }
 }

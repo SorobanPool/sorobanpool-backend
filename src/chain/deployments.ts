@@ -8,6 +8,10 @@ export interface Deployments {
   usdc: string;
   admin: string;
   contracts: Record<ContractName, { id: string; wasmHash: string }>;
+  /** Code of the per-user passkey wallet (contracts ADR 0006); each user's wallet is deployed by the sponsor. */
+  smartWallet?: { wasmHash: string };
+  /** Ledger the contracts were deployed at: where a fresh indexer starts if RPC still retains it. */
+  deployedAtLedger?: number;
 }
 
 /** Reads deployments/<network>.json produced by the contracts repo (`scripts/deploy.sh`). */

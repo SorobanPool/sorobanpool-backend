@@ -19,12 +19,15 @@ export class SoftAuthenticator {
   readonly credentialId = randomBytes(16);
   private readonly priv: KeyObject;
   private readonly cose: Buffer;
+  /** Uncompressed P-256 point (0x04 || x || y): what the on-chain wallet stores. */
+  readonly publicKey65: Buffer;
   counter = 0;
 
   constructor(private readonly rpId: string, private readonly origin: string) {
     const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
     this.priv = privateKey;
     const jwk = publicKey.export({ format: 'jwk' });
+    this.publicKey65 = Buffer.concat([Buffer.from([0x04]), Buffer.from(jwk.x!, 'base64url'), Buffer.from(jwk.y!, 'base64url')]);
     this.cose = cbor.map([
       [cbor.int(1), cbor.int(2)], [cbor.int(3), cbor.int(-7)], [cbor.int(-1), cbor.int(1)],
       [cbor.int(-2), cbor.bytes(Buffer.from(jwk.x!, 'base64url'))], [cbor.int(-3), cbor.bytes(Buffer.from(jwk.y!, 'base64url'))],
@@ -35,11 +38,12 @@ export class SoftAuthenticator {
     return Buffer.from(JSON.stringify({ type, challenge, origin: this.origin, crossOrigin: false }));
   }
 
-  register(challenge: string) {
+  /** `uv: false` simulates an authenticator that only proves presence (no fingerprint, face or PIN). */
+  register(challenge: string, opts: { uv?: boolean } = {}) {
     const counter = Buffer.alloc(4);
     const credLen = Buffer.alloc(2);
     credLen.writeUInt16BE(this.credentialId.length);
-    const authData = Buffer.concat([sha256(this.rpId), Buffer.from([0x45]), counter, Buffer.alloc(16), credLen, this.credentialId, this.cose]);
+    const authData = Buffer.concat([sha256(this.rpId), Buffer.from([opts.uv === false ? 0x41 : 0x45]), counter, Buffer.alloc(16), credLen, this.credentialId, this.cose]);
     const attestationObject = cbor.map([[cbor.text('fmt'), cbor.text('none')], [cbor.text('attStmt'), cbor.map([])], [cbor.text('authData'), cbor.bytes(authData)]]);
     return {
       id: b64u(this.credentialId), rawId: b64u(this.credentialId), type: 'public-key', clientExtensionResults: {},

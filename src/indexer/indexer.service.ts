@@ -26,9 +26,10 @@ export interface EventSink {
  * Where a brand-new indexer (no cursor yet) begins. A number is an operator's explicit choice and is honoured
  * strictly: below the RPC retention window it fails loudly, because history would be silently lost. `'oldest'`
  * (the default for a fresh install) starts at the oldest retained ledger and logs that earlier history, if any,
- * must be backfilled from an archive (docs/runbooks/indexer-backfill.md).
+ * must be backfilled from an archive (docs/runbooks/indexer-backfill.md). `{ from }` (the contracts' deploy ledger)
+ * starts there when RPC still retains it, otherwise behaves like `'oldest'`.
  */
-export type StartLedger = number | 'oldest';
+export type StartLedger = number | 'oldest' | { from: number };
 
 export interface IndexerMetrics {
   lag: number;
@@ -80,7 +81,8 @@ export class Indexer {
   }
 
   private initialCursor(oldest: number): number {
-    if (this.startLedger !== 'oldest') return this.startLedger - 1;
+    if (typeof this.startLedger === 'number') return this.startLedger - 1;
+    if (typeof this.startLedger === 'object' && this.startLedger.from >= oldest + RETENTION_MARGIN_LEDGERS) return this.startLedger.from - 1;
     const start = oldest + RETENTION_MARGIN_LEDGERS;
     console.warn(`[indexer] no cursor yet: starting near the oldest retained ledger (${start}, oldest ${oldest}); earlier events, if any, need a backfill`);
     return start - 1;

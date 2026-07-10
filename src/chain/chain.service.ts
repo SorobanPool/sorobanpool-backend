@@ -1,7 +1,8 @@
 import {
-  Account, Asset, authorizeEntry, BASE_FEE, Contract, Keypair, Operation, rpc, scValToNative, Transaction,
-  TransactionBuilder, xdr,
+  Account, Address, Asset, authorizeEntry, BASE_FEE, Contract, Keypair, nativeToScVal, Operation, rpc, scValToNative, StrKey,
+  Transaction, TransactionBuilder, xdr,
 } from '@stellar/stellar-sdk';
+import { walletAddress, walletSalt } from '../wallets/smart-wallet.js';
 import { type ContractName, contractId, type Deployments } from './deployments.js';
 import { credentialAddress, inspectUserTx } from './inspect.js';
 import { extendTtl, instanceAndCodeKeys, needsExtension, ttlStatus } from './ttl.js';
@@ -156,11 +157,60 @@ export class ChainService {
   }
 
   /**
-   * Testnet/dev only: pays test USDC (issued by the admin account) to a wallet that already trusts the asset. It spends the
-   * same account as the fee sponsor, so it runs inside the same lock: two transactions must never share a sequence number.
+   * Deploys a user's passkey wallet (contracts ADR 0006) from the sponsor, so the user never needs XLM. The address
+   * is fixed by (sponsor, salt = hash of the credential id), so a retry after a timeout finds the wallet already
+   * deployed instead of creating a second one. Only the sponsor can deploy at its own derived addresses.
+   */
+  async deployWallet(credentialId: Buffer, publicKey: Buffer): Promise<{ address: string; created: boolean }> {
+    const wasmHash = this.o.deployments.smartWallet?.wasmHash;
+    if (!wasmHash) throw new Error('deployments file has no smartWallet.wasmHash; redeploy the contracts');
+    if (publicKey.length !== 65 || publicKey[0] !== 0x04) throw new Error('wallet key must be an uncompressed P-256 point');
+    const salt = walletSalt(credentialId);
+    const address = walletAddress(this.sponsorAddress, salt, this.o.passphrase);
+    return this.lock.run(async () => {
+      if (await this.contractExists(address)) return { address, created: false };
+      const acct = await this.server.getAccount(this.sponsorAddress);
+      const tx = new TransactionBuilder(new Account(acct.accountId(), acct.sequenceNumber()), { fee: BASE_FEE, networkPassphrase: this.o.passphrase })
+        .addOperation(Operation.createCustomContract({
+          address: Address.fromString(this.sponsorAddress),
+          wasmHash: Buffer.from(wasmHash, 'hex'),
+          salt,
+          constructorArgs: [nativeToScVal(credentialId, { type: 'bytes' }), nativeToScVal(publicKey, { type: 'bytes' })],
+        }))
+        .setTimeout(120).build();
+      const sim = await this.server.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(sim)) throw new Error(`wallet deploy simulation failed: ${sim.error}`);
+      const res = await this.sendNow(rpc.assembleTransaction(tx, sim).build());
+      if (res.returnValue !== address) throw new Error(`wallet deployed at ${String(res.returnValue)}, expected ${address}`);
+      return { address, created: true };
+    });
+  }
+
+  private async contractExists(address: string): Promise<boolean> {
+    const res = await this.server.getLedgerEntries(new Contract(address).getFootprint());
+    return res.entries.length > 0;
+  }
+
+  /**
+   * Testnet/dev only: pays test USDC (issued by the admin account). Classic accounts must already trust the asset;
+   * contract wallets hold it through the asset contract with no trustline. It spends the same account as the fee
+   * sponsor, so it runs inside the same lock: two transactions must never share a sequence number.
    */
   async payUsdc(destination: string, stroops: bigint): Promise<void> {
     if (stroops <= 0n) throw new Error('payout must be positive');
+    if (StrKey.isValidContract(destination)) {
+      await this.lock.run(async () => {
+        const acct = await this.server.getAccount(this.sponsorAddress);
+        const tx = new TransactionBuilder(new Account(acct.accountId(), acct.sequenceNumber()), { fee: BASE_FEE, networkPassphrase: this.o.passphrase })
+          .addOperation(new Contract(this.o.deployments.usdc).call('transfer',
+            nativeToScVal(this.sponsorAddress, { type: 'address' }), nativeToScVal(destination, { type: 'address' }), nativeToScVal(stroops, { type: 'i128' })))
+          .setTimeout(120).build();
+        const sim = await this.server.simulateTransaction(tx);
+        if (rpc.Api.isSimulationError(sim)) throw new Error(`payout simulation failed: ${sim.error}`);
+        await this.sendNow(rpc.assembleTransaction(tx, sim).build());
+      });
+      return;
+    }
     const asset = new Asset('USDC', this.o.deployments.admin);
     const amount = `${stroops / 10_000_000n}.${(stroops % 10_000_000n).toString().padStart(7, '0')}`;
     await this.lock.run(async () => {
@@ -179,8 +229,8 @@ export class ChainService {
    * Keeps every contract's instance and code alive (ADR 0005). Extends only entries with under ~20 days left,
    * and reports entries the RPC cannot find: those are archived or misconfigured and need a human.
    */
-  async keepAlive(): Promise<{ extended: string[]; missing: string[]; txHash?: string }> {
-    const keys = instanceAndCodeKeys(this.o.deployments);
+  async keepAlive(wallets: string[] = []): Promise<{ extended: string[]; missing: string[]; txHash?: string }> {
+    const keys = instanceAndCodeKeys(this.o.deployments, wallets);
     const { extend, missing } = needsExtension(await ttlStatus(this.server, keys));
     const label = (s: { contract: string; kind: string }) => `${s.contract}.${s.kind}`;
     if (!extend.length) return { extended: [], missing: missing.map(label) };

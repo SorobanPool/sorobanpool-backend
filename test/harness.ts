@@ -37,6 +37,13 @@ export class FakeChain implements ChainPort {
   sponsorBalanceStroops = 5_000n * 10_000_000n;
   async sponsorBalance() { return this.sponsorBalanceStroops; }
   async keepAlive() { return { extended: [] as string[], missing: [] as string[] }; }
+  deployed: { credentialId: Buffer; publicKey: Buffer }[] = [];
+  async deployWallet(credentialId: Buffer, publicKey: Buffer) {
+    const address = StrKey.encodeContract(Buffer.from(credentialId.subarray(0, 32).toString('hex').padEnd(64, '0'), 'hex'));
+    const created = !this.deployed.some((d) => d.credentialId.equals(credentialId));
+    if (created) this.deployed.push({ credentialId, publicKey });
+    return { address, created };
+  }
   async view<T>(_n: ContractName, fn: string): Promise<T> {
     if (fn === 'get_params') return { accept_window_secs: 86400n, delivery_grace_secs: 172800n, confirm_window_secs: 172800n, perishable_confirm_window_secs: 259200n, early_release_weight_bp: 6000, arbitration_sla_secs: 432000n } as T;
     return undefined as T;
