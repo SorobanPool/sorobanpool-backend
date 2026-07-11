@@ -214,5 +214,17 @@
     "event": "d_timeout",
     "key": "dispute id",
     "data": "true"
+  },
+  {
+    "contract": "wallet",
+    "event": "key_add",
+    "key": "credential id",
+    "data": "() (emitted by each user's passkey wallet, not by a SorobanPool core contract; the indexer does not watch wallets)"
+  },
+  {
+    "contract": "wallet",
+    "event": "key_rm",
+    "key": "credential id",
+    "data": "() (emitted by each user's passkey wallet, not by a SorobanPool core contract; the indexer does not watch wallets)"
   }
 ]

@@ -165,7 +165,8 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
     const escrowBefore = await usdcBalance(deployments.contracts.group_buy.id);
 
     // ---- pool ----
-    const deadline = new Date(Date.now() + 90_000);
+    // Generous: pool creation, indexing and five sequential commits must all land before it on a busy testnet.
+    const deadline = new Date(Date.now() + 300_000);
     const prep = await http().post('/v1/pools/prepare').set(auth(organizer.token)).send({
       offerId: offer.body.id, fillDeadline: deadline.toISOString(), hub: { address: 'Wuse Market Gate B', contact: '08031234567' }, pickupWindow: { from: 'Mon 9am', to: 'Mon 5pm' }, organizerFeeBp: 100, clusterOnly: false,
     });
