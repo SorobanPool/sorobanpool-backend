@@ -1058,6 +1058,54 @@
         }
       }
     },
+    "/v1/kyc/start": {
+      "post": {
+        "operationId": "KycController.start",
+        "tags": [
+          "Kyc"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/kyc/status": {
+      "get": {
+        "operationId": "KycController.status",
+        "tags": [
+          "Kyc"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/v1/me": {
       "get": {
         "operationId": "UsersController.me",

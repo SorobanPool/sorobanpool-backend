@@ -47,7 +47,7 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
     db = await startTestDb();
     const env = loadEnv({
       DATABASE_URL: 'postgresql://x', REDIS_URL: 'redis://x', S3_ENDPOINT: 'http://x', S3_BUCKET_PUBLIC: 'p', S3_BUCKET_EVIDENCE: 'e', S3_ACCESS_KEY_REF: 'a', S3_SECRET_KEY_REF: 'b',
-      JWT_SECRET: 'j'.repeat(32), JWT_REFRESH_SECRET: 'r'.repeat(32), OTP_HMAC_SECRET: 'o'.repeat(32), ENCRYPTION_KEY_ID: 'k', RPC_URL: RPC, HORIZON_URL: 'https://horizon-testnet.stellar.org',
+      JWT_SECRET: 'j'.repeat(32), JWT_REFRESH_SECRET: 'r'.repeat(32), OTP_HMAC_SECRET: 'o'.repeat(32), ENCRYPTION_KEY_ID: 'literal:BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=', RPC_URL: RPC, HORIZON_URL: 'https://horizon-testnet.stellar.org',
       NETWORK_PASSPHRASE: PASSPHRASE, SPONSOR_SECRET_REF: 'env:SPONSOR_SECRET', ATTESTOR_SECRET_REF: 'env:SPONSOR_SECRET', WEBAUTHN_RP_ID: 'localhost',
       WEBAUTHN_ORIGIN: 'http://localhost:3001', PUBLIC_APP_URL: 'http://localhost:3001', OTP_DEV_ECHO: 'true', BOOTSTRAP_ADMIN_PHONES: '+2348000000001', FX_STATIC: '1500,1505', STELLAR_NETWORK: 'testnet',
     } as NodeJS.ProcessEnv);

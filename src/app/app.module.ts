@@ -3,6 +3,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AdminController } from './admin.controller.js';
 import { AnchorController } from './anchor.controller.js';
 import { AuthController, UsersController } from './auth.controller.js';
+import { KycController } from './kyc.controller.js';
 import { CatalogController } from './catalog.controller.js';
 import { DevController } from './dev.controller.js';
 import { DisputesController } from './disputes.controller.js';
@@ -21,7 +22,7 @@ import { HealthController } from '../health/health.controller.js';
 
 export function appControllers(services: Services) {
   return [
-    HealthController, MetricsController, AuthController, PasskeyController, UsersController, CatalogController, PoolsController, PoolStreamController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController,
+    HealthController, MetricsController, AuthController, PasskeyController, UsersController, CatalogController, PoolsController, PoolStreamController, TxController, UploadsController, DisputesController, AdminController, ReportsController, AnchorController, KycController,
     // The test-money faucet exists only off mainnet and outside production.
     ...(services.env.NODE_ENV !== 'production' && services.env.STELLAR_NETWORK !== 'mainnet' ? [DevController] : []),
   ];

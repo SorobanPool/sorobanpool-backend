@@ -1,5 +1,4 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, Inject, NotFoundException, Param, Post, Query } from '@nestjs/common';
-import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { A, type Role } from '../chain/args.js';
 import { sha256Hex } from '../common/canonical-json.js';
@@ -27,7 +26,14 @@ export class AdminController {
 
   @Roles('ADMIN') @Get('admin/suppliers')
   async suppliers(@Query('status') status = 'PENDING') {
-    return this.s.prisma.supplierProfile.findMany({ where: { kybStatus: status }, orderBy: { userId: 'asc' }, take: 100 });
+    const rows = await this.s.prisma.supplierProfile.findMany({ where: { kybStatus: status }, orderBy: { userId: 'asc' }, take: 100 });
+    const records = await this.s.prisma.verificationRecord.findMany({ where: { id: { in: rows.map((r) => r.kybRecordId).filter((x): x is string => !!x) } } });
+    // Reviewers see each automated check's outcome; the personal data behind them stays encrypted.
+    const checks = new Map(records.map((r) => {
+      const c = this.s.pii.open<{ checks: Record<string, { ok: boolean; reason?: string } | null> }>(r.result as never).checks;
+      return [r.id, Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v ? (v.ok ? 'PASSED' : v.reason ?? 'FAILED') : 'NOT_PROVIDED']))];
+    }));
+    return rows.map((r) => ({ ...r, kybChecks: (r.kybRecordId && checks.get(r.kybRecordId)) || null }));
   }
 
   /** Approves or rejects a supplier. Approval writes a verification hash on-chain with the attestor key. */
@@ -83,9 +89,7 @@ export class AdminController {
   private async attest(userId: string, role: Role, level: number): Promise<{ hash: string; verHash: string }> {
     const user = await this.s.prisma.user.findUnique({ where: { id: userId } });
     if (!user?.walletAddress) throw new BadRequestException({ error: 'NO_WALLET', message: 'The user has not bound a wallet' });
-    // ver_hash = sha256(userId || providerRef || level || salt): no personal data on-chain.
-    const verHash = sha256Hex(`${userId}|admin-review|${level}|${randomBytes(16).toString('hex')}`);
-    const r = await this.s.chain.invokeServer('registry', 'attest', A.attest(this.s.attestor.publicKey(), user.walletAddress, role, verHash, level), [this.s.attestor]);
-    return { hash: r.hash, verHash };
+    // Manual admin review: the reference is the review itself. The capped attestor writes only a salted hash on-chain.
+    return this.s.attestations.attest(userId, user.walletAddress, role, level, 'admin-review', 'admin');
   }
 }

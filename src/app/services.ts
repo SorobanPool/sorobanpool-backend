@@ -13,6 +13,9 @@ import { MockAnchor, type AnchorProvider } from '../anchor/anchor.js';
 import { createReporter, type ErrorReporter } from '../observability/errors.js';
 import { LocalObjectStore, S3ObjectStore, type ObjectStore } from '../evidence/store.js';
 import { PrismaOtpStore, PrismaSessionStore, PrismaUsageStore } from '../persistence/prisma-stores.js';
+import { PiiCipher } from '../common/pii.js';
+import { createVerificationProvider, type VerificationProvider } from '../verification/provider.js';
+import { Attestor } from '../verification/attestor.js';
 
 export const SERVICES = Symbol('SERVICES');
 
@@ -53,8 +56,13 @@ export interface Services {
   tokens: TokenService;
   policy: SponsorshipPolicy;
   fx: FxProvider;
-  /** Server-held attestor key: may only call registry.attest. */
+  /** Server-held attestor key: may only call registry.attest. Use `attestations`, which enforces the daily cap. */
   attestor: Keypair;
+  attestations: Attestor;
+  /** KYC / KYB provider (sandbox outside production; brief 7.8). */
+  kyc: VerificationProvider;
+  /** AES-256-GCM for personal data at rest. */
+  pii: PiiCipher;
   store: ObjectStore;
   /** Undefined on mainnet/production: naira rails need a licensed anchor (brief section 17) and there is none yet. */
   anchor?: AnchorProvider & { confirmDeposit?(id: string): Promise<unknown> };
@@ -70,6 +78,7 @@ export interface BuildOverrides {
   attestor?: Keypair;
   otpRandom?: () => number;
   store?: ObjectStore;
+  kyc?: VerificationProvider;
 }
 
 export function buildServices(env: Env, prisma: PrismaClient, deployments: Deployments, o: BuildOverrides = {}): Services {
@@ -95,6 +104,9 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
     tokens: new TokenService(env.JWT_SECRET, new PrismaSessionStore(prisma), now),
     policy: new SponsorshipPolicy(contractNameMap(deployments), new PrismaUsageStore(prisma), undefined, now),
     fx,
+    attestations: new Attestor(prisma, chain, attestor, env.ATTESTOR_DAILY_CAP, now),
+    kyc: o.kyc ?? createVerificationProvider(env.KYC_PROVIDER, env.NODE_ENV),
+    pii: new PiiCipher(resolveSecret(env.ENCRYPTION_KEY_ID, env.NODE_ENV)),
   };
   // The anchor reads services.fx at call time, so a replaced provider (tests, a future live source) is honoured.
   if (offMainnet) services.anchor = new MockAnchor(prisma, { quotes: () => services.fx.quotes() }, { pay: (w, s) => chain.payUsdc(w, s) }, now);

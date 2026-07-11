@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Patch, Post, Put } from '@nestjs/common';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { credentialIdBytes, p256PublicKeyFromCose, WalletKeyError } from '../wallets/smart-wallet.js';
+import { mask } from '../common/pii.js';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { AuthError } from '../auth/otp.service.js';
@@ -159,10 +160,24 @@ export class UsersController {
       state: z.string(), lga: z.string(), categories: z.array(z.string()).min(1),
       deliveryAreas: z.array(z.object({ state: z.string(), lga: z.string().optional() })).min(1),
       bankName: z.string().optional(), bankAccountMasked: z.string().optional(),
+      /** Optional at apply time; when given, the account name is checked against the business and directors. */
+      bankCode: z.string().regex(/^\d{3,6}$/).optional(), bankAccountNumber: z.string().regex(/^\d{10}$/).optional(),
+      directors: z.array(z.string().trim().min(2)).max(10).optional(),
     }), body);
-    await this.s.prisma.supplierProfile.upsert({ where: { userId: u.id }, create: { userId: u.id, ...b }, update: b });
+    const { bankCode, bankAccountNumber, directors, ...profile } = b;
+    // Automated KYB checks (brief 7.8). They never approve anyone: an admin still reviews the address and decides.
+    const cac = await this.s.kyc.verifyCac(b.cacNumber, b.businessName);
+    const bank = bankCode && bankAccountNumber ? await this.s.kyc.verifyBankAccountName(bankCode, bankAccountNumber, [b.businessName, ...(directors ?? [])]) : null;
+    const record = await this.s.prisma.verificationRecord.create({
+      data: {
+        userId: u.id, kind: 'KYB', provider: this.s.kyc.name, providerRef: cac.providerRef, status: cac.ok && (bank?.ok ?? true) ? 'PASSED' : 'FAILED',
+        result: this.s.pii.seal({ cacNumber: b.cacNumber, directors, bankCode, bankAccountNumber, checks: { cac, bank } }) as never,
+      },
+    });
+    const data = { ...profile, ...(bankAccountNumber ? { bankAccountMasked: mask(bankAccountNumber) } : {}), kybRecordId: record.id, kybStatus: 'PENDING' };
+    await this.s.prisma.supplierProfile.upsert({ where: { userId: u.id }, create: { userId: u.id, ...data }, update: data });
     await this.s.prisma.userRole.upsert({ where: { userId_role: { userId: u.id, role: 'SUPPLIER' } }, create: { userId: u.id, role: 'SUPPLIER' }, update: {} });
-    return { kybStatus: 'PENDING' };
+    return { kybStatus: 'PENDING', checks: { cac: cac.ok ? 'PASSED' : cac.reason, bank: bank ? (bank.ok ? 'PASSED' : bank.reason) : 'NOT_PROVIDED' } };
   }
 
   @Get('suppliers/me')
