@@ -41,5 +41,5 @@ Operations: `docs/runbooks/`.
 
 ## Not done yet
 - **Needs a decision or an outside party**: real naira anchor and withdrawals (ADR 0005; only a mock exists), a paid FX feed with an SLA (two free public feeds are wired: `FX_SOURCES=er-api,coingecko`), real SMS/WhatsApp providers (a console sender and the `SmsSender` port exist), a real KYC/KYB provider (the `VerificationProvider` port and a sandbox exist; ADR 0006), the external audit and mainnet pilot.
-- **Engineering left**: BullMQ scheduling (ADR 0002; needs Redis, an in-process interval scheduler runs today, so run one worker replica), OpenTelemetry, WebSocket transport (SSE is used instead), a pager integration (alerts are log lines), multi-replica rate limiting (the limiter is per process).
+- **Engineering left**: BullMQ scheduling (ADR 0002; needs Redis, an in-process interval scheduler runs today, so run one worker replica), OpenTelemetry, Redis fan-out for the SSE stream across API replicas (ADR 0007 explains SSE over WebSocket), a pager integration (alerts are log lines), multi-replica rate limiting (the limiter is per process).
 - **Not exercised against real providers**: the S3 adapter (tested against a local S3-style endpoint), Sentry delivery (tested against a local endpoint), the Horizon sponsor-balance read.
