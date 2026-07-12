@@ -251,5 +251,5 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
     expect(totalRefunds).toBe(totalPaid - gross); // every stroop of tier difference and shortfall came back
     const leftBehind = (await usdcBalance(deployments.contracts.group_buy.id)) - escrowBefore;
     expect(leftBehind >= 0n && leftBehind < 10n).toBe(true); // this pool leaves nothing in escrow but rounding dust
-  }, 900_000);
+  }, 25 * 60_000); // ~10 min of testnet onboarding + a 5 min fill window + delivery and settlement
 });
