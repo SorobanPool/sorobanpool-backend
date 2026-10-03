@@ -1,1 +1,0 @@
-Read and strictly follow the autonomous agent directives in [AGENTS.md](./AGENTS.md) before executing any code changes, commits, or pull requests.

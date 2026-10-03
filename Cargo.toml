@@ -1,19 +1,25 @@
-[workspace]
-members = ["oracle", "shared/config"]
-resolver = "2"
+[package]
+name = "sororail-backend"
+version = "0.1.0"
+edition = "2021"
 
-[workspace.package]
-rust-version = "1.95"
+[dependencies]
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+argon2 = "0.5"
+jsonwebtoken = "9"
+dotenvy = "0.15"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1"
+anyhow = "1"
 
-[workspace.lints.rust]
-# Allow during the Rust 2024 migration while dependencies and generated code settle on one lifetime spelling.
-mismatched_lifetime_syntaxes = "allow"
-
-# Aligned with railway.json healthcheck: setting healthcheckPath to /ready
-# ensures the probe reflects real liveness (/ready inspects state.cycle_status).
-# Setting panic = "abort" ensures any unexpected panic crashes the process,
-# allowing the ON_FAILURE restart policy to detect and restart it.
-[profile.release]
-overflow-checks = true
-panic = "abort"
-
+[dev-dependencies]
+tower-test = "0.4"
