@@ -113,30 +113,35 @@ export class ChainService {
     const op = base.tx.operations[0] as Operation.InvokeHostFunction;
     if (op.func.type !== 'hostFunctionTypeInvokeContract') throw new Error('unexpected host function');
     const scArgs = op.func.invokeContract.args;
-    // Re-inspect with the signed entries attached, then rebuild so footprint and fees are fresh.
-    const rebuilt = await this.build(base.contractId, base.fn, scArgs, entries);
-    inspectUserTx(rebuilt.toXDR(), { sponsor: this.sponsorAddress, passphrase: this.o.passphrase, userWallet, maxFeeStroops: MAX_FEE_STROOPS });
-    return this.send(rebuilt);
+    // The sponsor's sequence number is read when a transaction is built, so build+send must be one critical
+    // section: otherwise two concurrent submissions read the same sequence and one fails with txBAD_SEQ.
+    return this.lock.run(async () => {
+      const rebuilt = await this.build(base.contractId, base.fn, scArgs, entries);
+      inspectUserTx(rebuilt.toXDR(), { sponsor: this.sponsorAddress, passphrase: this.o.passphrase, userWallet, maxFeeStroops: MAX_FEE_STROOPS });
+      return this.sendNow(rebuilt);
+    });
   }
 
   /** Server-initiated call (keeper, attestor). `signers` authorise any `require_auth` addresses. */
   async invokeServer(name: ContractName, fn: string, args: xdr.ScVal[], signers: Keypair[] = []): Promise<TxResult> {
-    let tx = await this.build(this.id(name), fn, args);
-    if (signers.length) {
-      const op = tx.operations[0] as Operation.InvokeHostFunction;
-      const validUntil = (await this.latestLedger()) + AUTH_VALID_LEDGERS;
-      const signed: xdr.SorobanAuthorizationEntry[] = [];
-      for (const e of op.auth ?? []) {
-        const who = credentialAddress(e.credentials);
-        if (who !== null) {
-          const kp = signers.find((k) => k.publicKey() === who);
-          if (!kp) throw new Error(`no signer available for ${who}`);
-          signed.push(await authorizeEntry(e, kp, validUntil, this.o.passphrase));
-        } else signed.push(e);
+    return this.lock.run(async () => {
+      let tx = await this.build(this.id(name), fn, args);
+      if (signers.length) {
+        const op = tx.operations[0] as Operation.InvokeHostFunction;
+        const validUntil = (await this.latestLedger()) + AUTH_VALID_LEDGERS;
+        const signed: xdr.SorobanAuthorizationEntry[] = [];
+        for (const e of op.auth ?? []) {
+          const who = credentialAddress(e.credentials);
+          if (who !== null) {
+            const kp = signers.find((k) => k.publicKey() === who);
+            if (!kp) throw new Error(`no signer available for ${who}`);
+            signed.push(await authorizeEntry(e, kp, validUntil, this.o.passphrase));
+          } else signed.push(e);
+        }
+        tx = await this.build(this.id(name), fn, args, signed);
       }
-      tx = await this.build(this.id(name), fn, args, signed);
-    }
-    return this.send(tx);
+      return this.sendNow(tx);
+    });
   }
 
   /**
@@ -155,15 +160,14 @@ export class ChainService {
     return { extended: [...wanted], missing: missing.map(label), txHash };
   }
 
-  private send(tx: Transaction): Promise<TxResult> {
-    return this.lock.run(async () => {
-      tx.sign(this.o.sponsor);
-      const sent = await this.server.sendTransaction(tx);
-      if (sent.status === 'ERROR') throw new Error(`submit failed: ${sent.errorResult?.toXDR('base64') ?? 'unknown'}`);
-      const done = await this.server.pollTransaction(sent.hash, { attempts: 30 });
-      if (done.status !== rpc.Api.GetTransactionStatus.SUCCESS) throw new Error(`transaction ${sent.hash} ${done.status}`);
-      return { hash: sent.hash, returnValue: done.returnValue ? scValToNative(done.returnValue) : undefined };
-    });
+  /** Signs, submits and waits. Callers hold the lock (see submitUser). */
+  private async sendNow(tx: Transaction): Promise<TxResult> {
+    tx.sign(this.o.sponsor);
+    const sent = await this.server.sendTransaction(tx);
+    if (sent.status === 'ERROR') throw new Error(`submit failed: ${sent.errorResult?.toXDR('base64') ?? 'unknown'}`);
+    const done = await this.server.pollTransaction(sent.hash, { attempts: 30 });
+    if (done.status !== rpc.Api.GetTransactionStatus.SUCCESS) throw new Error(`transaction ${sent.hash} ${done.status}`);
+    return { hash: sent.hash, returnValue: done.returnValue ? scValToNative(done.returnValue) : undefined };
   }
 }
 
