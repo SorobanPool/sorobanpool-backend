@@ -117,6 +117,7 @@ export class PrismaReadStore implements ReadStore {
       finalUnitPrice: p.finalUnitPrice ? fromDec(p.finalUnitPrice) : 0n, escrowBalance: fromDec(p.escrowBalance),
       frozenAmount: fromDec(p.frozenAmount), advancePaid: fromDec(p.advancePaid), filledAt: p.filledAt,
       acceptedAt: p.acceptedAt, dispatchedAt: p.dispatchedAt, deliveredAt: p.deliveredAt, pickedUnits: p.pickedUnits,
+      supplierNet: fromDec(p.supplierNet), platformFee: fromDec(p.platformFee), organizerFee: fromDec(p.organizerFee), endedAt: p.endedAt,
       allocationPending: p.allocationPending, refundsPushed: p.refundsPushed, lastEventLedger: p.lastEventLedger,
     };
   }
@@ -133,6 +134,7 @@ export class PrismaReadStore implements ReadStore {
       finalUnitPrice: r.finalUnitPrice > 0n ? toDec(r.finalUnitPrice) : null, escrowBalance: toDec(r.escrowBalance),
       frozenAmount: toDec(r.frozenAmount), advancePaid: toDec(r.advancePaid), filledAt: r.filledAt, acceptedAt: r.acceptedAt,
       dispatchedAt: r.dispatchedAt, deliveredAt: r.deliveredAt, pickedUnits: r.pickedUnits,
+      supplierNet: toDec(r.supplierNet), platformFee: toDec(r.platformFee), organizerFee: toDec(r.organizerFee), endedAt: r.endedAt,
       allocationPending: r.allocationPending, refundsPushed: r.refundsPushed, lastEventLedger: r.lastEventLedger,
     };
     const offerId = existing?.offerId;
@@ -160,7 +162,9 @@ export class PrismaReadStore implements ReadStore {
     if (r.finalUnitPrice > 0n) return toDec(r.finalUnitPrice);
     const offer = await this.db.offer.findUnique({ where: { id: offerId } });
     if (!offer) return '0';
-    return toDec(ceilingPrice(tiersFromJson(offer.tiersUsdc), r.totalUnits));
+    const tiers = tiersFromJson(offer.tiersUsdc);
+    // An offer without USDC tiers (never published) must not crash the indexer: one odd pool cannot stall everyone else's.
+    return tiers.length ? toDec(ceilingPrice(tiers, r.totalUnits)) : '0';
   }
 
   async commitment(poolId: bigint, member: string): Promise<CommitmentRow | undefined> {
