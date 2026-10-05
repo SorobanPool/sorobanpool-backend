@@ -100,8 +100,8 @@ describe('Projector', () => {
     await apply(raw('disputes', 'd_resolve', u64(9n), tup(a(addr()), nativeToScVal(bytes32(4)))));
     expect(store.disputes.get(9n)!.state).toBe('RESOLVED');
     expect(store.pools.get(1n)!.frozenAmount).toBe(0n);
-    await apply(raw('supplier_bond', 'deposit', a(supplier), i128(500n)));
-    await apply(raw('supplier_bond', 'slashed', a(supplier), i128(120n)));
+    await apply(raw('bond', 'deposit', a(supplier), i128(500n)));
+    await apply(raw('bond', 'slashed', a(supplier), i128(120n)));
     expect(store.bonds.get(supplier)!.total).toBe(380n);
   });
 

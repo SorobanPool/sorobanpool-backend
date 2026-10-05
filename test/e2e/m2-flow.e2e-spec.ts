@@ -178,15 +178,22 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
     // ---- commits across both price breaks ----
     const units = [30, 30, 30, 40, 40]; // running totals 30, 60, 90, 130, 170: crosses the 50, 100 and 150 breaks
     let before = 0;
-    const paid: bigint[] = [];
     for (let i = 0; i < traders.length; i++) {
-      const q = await http().get(`/v1/pools/${poolId}/quote?units=${units[i]}`).set(auth(traders[i]!.token)).expect(200);
+      // The quote is indicative: it reads the indexed pool, which can lag a commit that just landed.
+      await http().get(`/v1/pools/${poolId}/quote?units=${units[i]}`).set(auth(traders[i]!.token)).expect(200);
       await act(traders[i]!, `/v1/pools/${poolId}/commit/prepare`, { units: units[i] });
-      paid.push(BigInt(q.body.amountNowUsdc));
       before += units[i]!;
     }
     expect(before).toBe(170);
     await sync(async () => (await db.prisma.pool.findUniqueOrThrow({ where: { id: pool.id } })).totalUnits === 170, 'all commitments indexed');
+    // Each member pays the ceiling price: the tier the pool was in before their units.
+    const commitRows = await db.prisma.commitment.findMany({ where: { poolId: pool.id } });
+    const paidBy = new Map(commitRows.map((c) => [c.memberAddress, toStroops(c.paid.toString())]));
+    const paid = traders.map((t) => paidBy.get(t.kp.publicKey())!);
+    const p1 = tiers[0]!.price;
+    const p2 = tiers[1]!.price;
+    // 30,30,30,40 units commit while the pool is below 100 units (tier 1 price); the last 40 commit at 130 units (tier 2 price)
+    expect(paid.map(String)).toEqual([30n * p1, 30n * p1, 30n * p1, 40n * p1, 40n * p2].map(String));
     const filledView = await db.prisma.pool.findUniqueOrThrow({ where: { id: pool.id } });
     expect(toStroops(filledView.escrowBalance.toString())).toBe(paid.reduce((a, b) => a + b, 0n)); // indexed escrow equals what members paid
 

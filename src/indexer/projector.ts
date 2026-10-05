@@ -112,16 +112,16 @@ export const HANDLERS: Record<string, Handler> = {
     await s.saveDispute({ ...d, state: 'TIMED_OUT' });
     await releaseFrozen(s, d.poolId, d.claimedAmount);
   },
-  'supplier_bond.deposit': async (ev, s) => bondDelta(ev, s, asBig(ev.data)),
-  'supplier_bond.withdraw': async (ev, s) => bondDelta(ev, s, -asBig(ev.data)),
-  'supplier_bond.slashed': async (ev, s) => bondDelta(ev, s, -asBig(ev.data)),
+  'bond.deposit': async (ev, s) => bondDelta(ev, s, asBig(ev.data)),
+  'bond.withdraw': async (ev, s) => bondDelta(ev, s, -asBig(ev.data)),
+  'bond.slashed': async (ev, s) => bondDelta(ev, s, -asBig(ev.data)),
 };
 
 /** Events that are recorded in ChainEvent but intentionally do not change a read model. */
 export const IGNORED_EVENTS: ReadonlySet<string> = new Set([
   'config.params', 'config.paused', 'config.unpaused', 'config.upgraded',
   'registry.user_reg', 'registry.user_att', 'registry.user_rev', 'registry.user_sus', 'registry.user_uns',
-  'reputation.rep_upd', 'disputes.d_evid',
+  'rep.rep_upd', 'disputes.d_evid',
 ]);
 
 async function commit(ev: DecodedEvent, s: ReadStore): Promise<void> {
