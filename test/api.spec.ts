@@ -352,6 +352,12 @@ describe('fx quote', () => {
 });
 
 describe('public product images', () => {
+  it('rejects bytes that are not a decodable image with a clear 400', async () => {
+    const s = await approvedSupplier();
+    const sign = await h.http().post('/v1/uploads/sign').set(auth(s.token)).send({ kind: 'PRODUCT', mime: 'image/png', size: 20 }).expect(201);
+    const r = await h.http().put(sign.body.uploadUrl).set('Content-Type', 'image/png').send(Buffer.from('definitely not a png')).expect(400);
+    expect(r.body.error).toBe('IMAGE_INVALID');
+  });
   it('serves only PRODUCT photos, as WebP, to anyone', async () => {
     const s = await approvedSupplier();
     const png = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#a60' } }).png().toBuffer();

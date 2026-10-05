@@ -44,7 +44,15 @@ export class UploadsController {
     if (problem) throw new BadRequestException({ error: 'UPLOAD_INVALID', message: problem });
     // Public product photos are re-encoded as small WebP with metadata stripped (no EXIF location).
     const isPublic = row.kind === 'PRODUCT';
-    const stored = isPublic ? await toPublicThumbnail(bytes) : bytes;
+    let stored: Uint8Array = bytes;
+    if (isPublic) {
+      try {
+        stored = await toPublicThumbnail(bytes);
+      } catch {
+        // Undecodable bytes are the uploader's problem (a 400 they can act on), not a server fault.
+        throw new BadRequestException({ error: 'IMAGE_INVALID', message: 'That file could not be read as an image' });
+      }
+    }
     await this.s.store.put(isPublic ? 'public' : 'evidence', p.key, stored);
     const sha = evidenceHash(stored);
     await this.s.prisma.evidence.update({ where: { id: row.id }, data: { sha256: sha, mime: isPublic ? 'image/webp' : row.mime } });
