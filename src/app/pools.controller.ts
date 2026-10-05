@@ -3,7 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { A } from '../chain/args.js';
 import { canonicalJson, sha256Hex } from '../common/canonical-json.js';
-import { formatUsdc } from '../common/money.js';
+import { formatUsdc, toStroops } from '../common/money.js';
 import { unitLabelHash } from '../catalog/offer.js';
 import { quote as priceQuote, ceilingPrice, tierIndex } from '../pools/pricing.js';
 import { renderShareCard } from '../sharecards/sharecard.js';
@@ -81,7 +81,7 @@ export class PoolsController {
         currentUnitPriceUsdc: price.toString(), currentUnitPriceNaira: rate ? naira(((price * BigInt(Math.round(rate * 1e6))) / 10_000_000n / 1_000_000n)) : null,
         nextBreak: next ? { unitsToGo: next.minUnits - pool.totalUnits, unitPriceUsdc: next.unitPrice.toString() } : null,
         tiersUsdc: tiers.map((t) => ({ minUnits: t.minUnits, unitPrice: t.unitPrice.toString() })),
-        finalUnitPriceUsdc: pool.finalUnitPrice?.toString() ?? null, escrowBalanceUsdc: pool.escrowBalance.toString(),
+        finalUnitPriceUsdc: pool.finalUnitPrice ? toStroops(pool.finalUnitPrice.toString()).toString() : null, escrowBalanceUsdc: toStroops(pool.escrowBalance.toString()).toString(), // stroops, like every other *Usdc field here
         offer: offer ? publicOffer(offer) : null,
         trustMessage: 'Your money is held safely. The supplier is paid only after the goods arrive. If the group does not fill, you get everything back automatically.',
       },
