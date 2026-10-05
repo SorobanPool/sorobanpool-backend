@@ -4,6 +4,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ZodError, type ZodType } from 'zod';
+import { AnchorError } from '../anchor/anchor.js';
 import { AuthError } from '../auth/otp.service.js';
 import { SponsorshipError } from '../relayer/allowlist.js';
 import { TxRejected } from '../chain/inspect.js';
@@ -69,6 +70,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const status = e.code === 'OTP_RATE_LIMITED' ? 429 : e.code === 'INVALID_PHONE' ? 400 : 401;
       return send(status, { error: e.code, message: e.message });
     }
+    if (e instanceof AnchorError) return send(e.code === 'NOT_FOUND' ? 404 : e.code === 'FX_UNAVAILABLE' ? 503 : 400, { error: e.code, message: e.message });
     if (e instanceof SponsorshipError) return send(e.code === 'CAP_REACHED' ? 429 : 403, { error: e.code, message: e.message });
     if (e instanceof TxRejected) return send(e.code === 'WRONG_SIGNER' || e.code === 'SPONSOR_AUTH' ? 403 : 400, { error: e.code, message: e.message });
     if (e instanceof ZodError) return send(400, { error: 'VALIDATION', message: e.message });

@@ -435,3 +435,52 @@ describe('reports: supplier statement and admin risk overview', () => {
     for (const path of ['/v1/admin/risk/overview', '/v1/admin/disputes', '/v1/admin/users']) await h.http().get(path).set(auth(trader.token)).expect(403);
   });
 });
+
+describe('naira deposits (mock anchor)', () => {
+  async function userWithWallet() {
+    const u = await h.login(newPhone());
+    await h.bindWallet(u.token, Keypair.random());
+    return u;
+  }
+
+  it('quotes indicatively, then credits USDC once at the rate in force when the bank transfer is confirmed', async () => {
+    const u = await userWithWallet();
+    const start = await h.http().post('/v1/anchor/deposit/start').set(auth(u.token)).send({ amountNgn: '150000' }).expect(201);
+    expect(start.body).toMatchObject({ anchor: 'mock-anchor', amountNgn: '150000', ngnPerUsd: 1502.5 });
+    expect(start.body.instructions.reference).toBe(start.body.transferId);
+    const before = h.chain.paid.length;
+    expect((await h.http().get(`/v1/anchor/transfers/${start.body.transferId}`).set(auth(u.token)).expect(200)).body.status).toBe('PENDING');
+
+    h.s.fx = new StaticFxProvider([1600, 1610]); // the rate moves before the bank confirms: the final rate wins
+    const done = await h.http().post('/v1/dev/anchor/confirm').set(auth(u.token)).send({ transferId: start.body.transferId }).expect(200);
+    h.s.fx = new StaticFxProvider([1500, 1505]);
+    expect(done.body.status).toBe('COMPLETED');
+    expect(h.chain.paid).toHaveLength(before + 1);
+    expect(h.chain.paid.at(-1)!.stroops).toBe((150000n * 10_000_000n * 1_000_000n) / 1_605_000_000n); // median 1605, rounded down
+    expect(done.body.amountUsdc).toMatch(/^93\.45/);
+
+    await h.http().post('/v1/dev/anchor/confirm').set(auth(u.token)).send({ transferId: start.body.transferId }).expect(200); // duplicate callback
+    expect(h.chain.paid).toHaveLength(before + 1); // never paid twice
+  });
+
+  it('rejects out-of-range amounts, hides other people\'s transfers, and needs a wallet to be credited', async () => {
+    const u = await userWithWallet();
+    for (const amountNgn of ['999', '5000001', '12.5', 'abc']) await h.http().post('/v1/anchor/deposit/start').set(auth(u.token)).send({ amountNgn }).expect(400);
+    const start = await h.http().post('/v1/anchor/deposit/start').set(auth(u.token)).send({ amountNgn: '5000' }).expect(201);
+    const other = await userWithWallet();
+    await h.http().get(`/v1/anchor/transfers/${start.body.transferId}`).set(auth(other.token)).expect(404);
+    await h.http().post('/v1/dev/anchor/confirm').set(auth(other.token)).send({ transferId: start.body.transferId }).expect(400);
+    const bare = await h.login(newPhone()); // no wallet
+    const s2 = await h.http().post('/v1/anchor/deposit/start').set(auth(bare.token)).send({ amountNgn: '5000' }).expect(201);
+    await h.http().post('/v1/dev/anchor/confirm').set(auth(bare.token)).send({ transferId: s2.body.transferId }).expect(400);
+  });
+
+  it('is unavailable (501) when there is no anchor, as on mainnet', async () => {
+    const saved = h.s.anchor;
+    h.s.anchor = undefined;
+    const u = await userWithWallet();
+    const r = await h.http().post('/v1/anchor/deposit/start').set(auth(u.token)).send({ amountNgn: '5000' }).expect(501);
+    expect(r.body.error).toBe('NOT_AVAILABLE');
+    h.s.anchor = saved;
+  });
+});
