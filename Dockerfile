@@ -1,11 +1,17 @@
-FROM rust:1.82 AS builder
+FROM node:24-slim AS build
 WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY . .
-RUN cargo build --release
+RUN pnpm build
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y ca-certificates libssl3 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/sororail-backend /usr/local/bin/sororail-backend
-EXPOSE 8080
-HEALTHCHECK CMD curl -f http://localhost:8080/ready || exit 1
-CMD ["sororail-backend"]
+FROM node:24-slim
+WORKDIR /app
+RUN corepack enable
+ENV NODE_ENV=production
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+COPY --from=build /app/dist ./dist
+EXPOSE 3000
+CMD ["node", "dist/main"]

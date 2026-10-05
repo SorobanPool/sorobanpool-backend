@@ -1,3 +1,5 @@
-/target
 .env
-*.log
+node_modules/
+dist/
+coverage/
+*.swp
