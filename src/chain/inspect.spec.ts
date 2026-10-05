@@ -10,7 +10,7 @@ const GB = StrKey.encodeContract(Buffer.alloc(32, 1));
 const OTHER = StrKey.encodeContract(Buffer.alloc(32, 2));
 const rules: InspectRules = { sponsor: sponsor.publicKey(), passphrase: Networks.TESTNET, userWallet: user.publicKey(), maxFeeStroops: 10_000_000 };
 
-function authEntry(who: string | 'source', contract = GB, fn = 'commit', kind: 'v1' | 'v2' = 'v1'): xdr.SorobanAuthorizationEntry {
+function authEntry(who: string, contract = GB, fn = 'commit', kind: 'v1' | 'v2' = 'v1'): xdr.SorobanAuthorizationEntry {
   const addressCreds = (a: string) =>
     new xdr.SorobanAddressCredentials({ address: new Address(a).toScAddress(), nonce: 1n, signatureExpirationLedger: 100, signature: xdr.ScVal.scvVoid() });
   const credentials =
