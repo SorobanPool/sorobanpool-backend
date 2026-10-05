@@ -21,7 +21,7 @@ const tup = (...v: xdr.ScVal[]) => xdr.ScVal.scvVec(v);
 let n = 0;
 function raw(contract: string, event: string, key: xdr.ScVal, data: xdr.ScVal, ledger = 100): RawEvent {
   return {
-    id: `ev-${++n}`, ledger, contractId: 'C' + contract,
+    id: `ev-${++n}`, ledger, ledgerClosedAt: new Date(1_760_000_000_000 + ledger * 5000).toISOString(), contractId: 'C' + contract,
     topic: [sym(contract), sym(event), key.toXDR('base64')], value: data.toXDR('base64'),
   };
 }
@@ -52,7 +52,7 @@ describe('Projector', () => {
     const p = new Projector(store);
     const apply = async (r: RawEvent) => p.apply(decodeEvent(r)!);
     const id = u64(1n);
-    await apply(raw('group_buy', 'pool_new', id, tup(a(organizer), a(supplier), nativeToScVal(bytes32(7)))));
+    await apply(raw('group_buy', 'pool_new', id, tup(a(organizer), a(supplier), nativeToScVal(bytes32(7)), nativeToScVal(bytes32(3)))));
     await apply(raw('group_buy', 'committed', id, tup(a(m1), u32(60), i128(600n))));
     await apply(raw('group_buy', 'committed', id, tup(a(m2), u32(60), i128(600n))));
     await apply(raw('group_buy', 'tier_up', id, tup(u32(1), u32(120))));
@@ -63,13 +63,20 @@ describe('Projector', () => {
 
   it('projects commitments and pool state through to settlement', async () => {
     const { store, apply, id } = await fullLifecycle();
-    expect(store.pools.get(1n)).toMatchObject({ state: 'Filled', totalUnits: 130, finalUnitPrice: 8n, currentTierIdx: 1, escrowBalance: 1300n });
+    expect(store.pools.get(1n)).toMatchObject({
+      state: 'Filled', totalUnits: 130, finalUnitPrice: 8n, currentTierIdx: 1, escrowBalance: 1300n,
+      hubHash: '03'.repeat(32), offerHash: '07'.repeat(32),
+    });
+    expect(store.pools.get(1n)!.filledAt).toBeInstanceOf(Date);
     expect(store.commitments.get(`1:${m1}`)).toMatchObject({ units: 70, paid: 700n });
     await apply(raw('group_buy', 'accepted', id, a(supplier)));
     await apply(raw('group_buy', 'dispatch', id, xdr.ScVal.scvVoid()));
     await apply(raw('group_buy', 'delivered', id, tup(u32(120), nativeToScVal(bytes32(5)))));
-    expect(store.pools.get(1n)).toMatchObject({ state: 'Delivered', receivedUnits: 120 });
+    expect(store.pools.get(1n)).toMatchObject({ state: 'Delivered', receivedUnits: 120, allocationPending: true });
+    await apply(raw('group_buy', 'alloc_ok', id, u32(120)));
+    expect(store.pools.get(1n)!.allocationPending).toBe(false);
     await apply(raw('group_buy', 'pickup', id, a(m1)));
+    expect(store.pools.get(1n)!.pickedUnits).toBe(70);
     await apply(raw('group_buy', 'settled', id, tup(i128(900n), i128(15n), i128(9n))));
     await apply(raw('group_buy', 'refund', id, tup(a(m1), i128(100n))));
     expect(store.pools.get(1n)).toMatchObject({ state: 'Settled', escrowBalance: 1300n - 924n - 100n });
@@ -128,7 +135,7 @@ describe('Indexer', () => {
   }
 
   it('stores raw events, projects them, advances the cursor in batches and reports lag', async () => {
-    const ev = raw('group_buy', 'pool_new', u64(1n), tup(a(organizer()), a(addr()), nativeToScVal(bytes32(1))), 40);
+    const ev = raw('group_buy', 'pool_new', u64(1n), tup(a(organizer()), a(addr()), nativeToScVal(bytes32(1)), nativeToScVal(bytes32(2))), 40);
     const h = harness({ latest: 70, events: [ev] });
     expect(await h.idx.tick()).toEqual({ processed: 1 }); // ledgers 1..50
     expect(h.saved).toHaveLength(1);

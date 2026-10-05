@@ -81,7 +81,7 @@
     "contract": "group_buy",
     "event": "pool_new",
     "key": "pool id",
-    "data": "(organizer, supplier, offer_hash)"
+    "data": "(organizer, supplier, offer_hash, hub_hash)"
   },
   {
     "contract": "group_buy",
@@ -166,6 +166,12 @@
     "event": "shortfall",
     "key": "pool id",
     "data": "missing units"
+  },
+  {
+    "contract": "group_buy",
+    "event": "alloc_ok",
+    "key": "pool id",
+    "data": "received units (shortfall allocation finished; settle is now allowed)"
   },
   {
     "contract": "group_buy",
