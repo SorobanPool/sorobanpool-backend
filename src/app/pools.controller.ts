@@ -76,6 +76,7 @@ export class PoolsController {
         hub: { address: pool.hubAddress, contact: pool.hubContact }, pickupWindow: pool.pickupWindow, fillDeadline: pool.fillDeadline,
         totalUnits: pool.totalUnits, receivedUnits: pool.receivedUnits, moq: offer?.moq ?? null, maxUnits: offer?.maxUnits ?? null, members,
         ngnPerUsd: rate ?? null,
+        filledAt: pool.filledAt,
         progressPct: offer && offer.moq > 0 ? Math.min(100, Math.floor((pool.totalUnits * 100) / offer.moq)) : 0,
         currentUnitPriceUsdc: price.toString(), currentUnitPriceNaira: rate ? naira(((price * BigInt(Math.round(rate * 1e6))) / 10_000_000n / 1_000_000n)) : null,
         nextBreak: next ? { unitsToGo: next.minUnits - pool.totalUnits, unitPriceUsdc: next.unitPrice.toString() } : null,
@@ -115,7 +116,7 @@ export class PoolsController {
     const rows = await this.s.prisma.pool.findMany({ where, orderBy: { id: 'desc' }, take: 100 });
     const cards = await Promise.all(rows.map(async (p) => {
       const { view } = await this.poolView(p.id);
-      return { id: view.id, state: view.state, organizer: view.organizer, shareSlug: view.shareSlug, offerId: view.offerId, totalUnits: view.totalUnits, moq: view.moq, progressPct: view.progressPct,
+      return { id: view.id, state: view.state, organizer: view.organizer, supplier: view.supplier, shareSlug: view.shareSlug, offerId: view.offerId, totalUnits: view.totalUnits, moq: view.moq, progressPct: view.progressPct,
         fillDeadline: view.fillDeadline, title: view.offer?.title ?? null, unitLabel: view.offer?.unitLabel ?? null, currentUnitPriceNaira: view.currentUnitPriceNaira, hub: view.hub.address };
     }));
     return cards;
