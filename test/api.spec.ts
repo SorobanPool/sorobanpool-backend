@@ -171,6 +171,8 @@ describe('pools', () => {
     const preview = await h.http().get(`/v1/p/${p.prep.shareSlug}`).expect(200);
     expect(preview.body).toMatchObject({ state: 'Open', totalUnits: 150, moq: 100, hub: { address: 'Wuse Market Gate B' } });
     expect(preview.body.nextBreak.unitsToGo).toBe(50); // 200 - 150
+    expect(preview.body.escrowBalanceUsdc).toMatch(/^\d+$/); // whole stroops, never a decimal string
+    expect(preview.body).toHaveProperty('filledAt', null); // set once the pool is filled; the supplier screen counts the accept window from it
     expect(preview.body.trustMessage).toMatch(/held safely/);
     expect(preview.body.currentUnitPriceNaira).toMatch(/^[\d,]+$/);
 
@@ -276,11 +278,17 @@ describe('disputes and arbiter', () => {
 
     await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(403);
     const arb = await h.login(PHONE_ARBITER);
+    const evForArbiter = sign.body.evidenceId as string;
     await h.bindWallet(arb.token, Keypair.random());
     const proj = new Projector(new PrismaReadStore(h.db.prisma));
     const poolId = BigInt(Date.now()) * 10n + 1n;
     await proj.apply(decodeEvent(raw('group_buy', 'pool_new', u64(poolId), tup(a(Keypair.random().publicKey()), a(Keypair.random().publicKey()), bytes(1), bytes(2)), 20))!);
     await proj.apply(decodeEvent(raw('disputes', 'd_open', u64(77n), tup(u64(poolId), a(Keypair.random().publicKey()), i128(5_000_000n)), 21))!);
+    // Evidence the trader uploaded for pool 7 becomes readable by an arbiter only once that pool has an open dispute.
+    await h.db.prisma.dispute.create({ data: { id: 78n, poolId: 7n, openerAddress: 'GX', reason: 'Damaged', claimedUnits: 1, claimedAmount: '1', state: 'OPEN', openedAt: new Date(), slaDueAt: new Date(Date.now() + 1e6) } });
+    await h.http().get(`/v1/evidence/${evForArbiter}/url`).set(auth(arb.token)).expect(200);
+    await h.db.prisma.dispute.update({ where: { id: 78n }, data: { state: 'RESOLVED' } });
+    await h.http().get(`/v1/evidence/${evForArbiter}/url`).set(auth(arb.token)).expect(403);
     const q = await h.http().get('/v1/arbiter/queue').set(auth(arb.token)).expect(200);
     expect(q.body.map((d: { id: string }) => d.id)).toContain('77');
     const res = await h.http().post('/v1/arbiter/disputes/77/resolve/prepare').set(auth(arb.token)).send({ outcome: { kind: 'Split', bp: 2500 }, reasoning: 'Photos show partial damage; split 25/75.' }).expect(201);
@@ -330,5 +338,39 @@ describe('role changes take effect immediately', () => {
     await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(200); // same token, no re-login needed
     await h.db.prisma.userRole.delete({ where: { userId_role: { userId: u.userId, role: 'ARBITER' } } });
     await h.http().get('/v1/arbiter/queue').set(auth(u.token)).expect(403); // revoked: effective at once
+  });
+});
+
+describe('fx quote', () => {
+  it('is public, returns the median rate, and is blocked when sources diverge', async () => {
+    const r = await h.http().get('/v1/fx/quote').expect(200);
+    expect(r.body).toMatchObject({ ngnPerUsd: 1502.5, sources: 2, ttlSeconds: 60 });
+    const original = h.s.fx;
+    h.s.fx = new StaticFxProvider([1500, 1700]);
+    expect((await h.http().get('/v1/fx/quote').expect(400)).body.error).toBe('FX_DIVERGENCE');
+    h.s.fx = original;
+  });
+});
+
+describe('public product images', () => {
+  it('rejects bytes that are not a decodable image with a clear 400', async () => {
+    const s = await approvedSupplier();
+    const sign = await h.http().post('/v1/uploads/sign').set(auth(s.token)).send({ kind: 'PRODUCT', mime: 'image/png', size: 20 }).expect(201);
+    const r = await h.http().put(sign.body.uploadUrl).set('Content-Type', 'image/png').send(Buffer.from('definitely not a png')).expect(400);
+    expect(r.body.error).toBe('IMAGE_INVALID');
+  });
+  it('serves only PRODUCT photos, as WebP, to anyone', async () => {
+    const s = await approvedSupplier();
+    const png = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#a60' } }).png().toBuffer();
+    const sign = await h.http().post('/v1/uploads/sign').set(auth(s.token)).send({ kind: 'PRODUCT', mime: 'image/png', size: png.length }).expect(201);
+    await h.http().put(sign.body.uploadUrl).set('Content-Type', 'image/png').send(png).expect(200);
+    const img = await h.http().get(`/v1/images/${sign.body.evidenceId}`).buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on('data', (d: Buffer) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); }).expect(200);
+    expect(img.headers['content-type']).toBe('image/webp');
+    expect((await sharp(img.body as Buffer).metadata()).width).toBe(640);
+    // delivery/dispute evidence is never served this way
+    const t = await h.login(newPhone());
+    const ev = await h.http().post('/v1/uploads/sign').set(auth(t.token)).send({ kind: 'DISPUTE', mime: 'image/png', size: png.length, poolId: '7' }).expect(201);
+    await h.http().put(ev.body.uploadUrl).set('Content-Type', 'image/png').send(png).expect(200);
+    await h.http().get(`/v1/images/${ev.body.evidenceId}`).expect(404);
   });
 });

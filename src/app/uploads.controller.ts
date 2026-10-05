@@ -44,7 +44,15 @@ export class UploadsController {
     if (problem) throw new BadRequestException({ error: 'UPLOAD_INVALID', message: problem });
     // Public product photos are re-encoded as small WebP with metadata stripped (no EXIF location).
     const isPublic = row.kind === 'PRODUCT';
-    const stored = isPublic ? await toPublicThumbnail(bytes) : bytes;
+    let stored: Uint8Array = bytes;
+    if (isPublic) {
+      try {
+        stored = await toPublicThumbnail(bytes);
+      } catch {
+        // Undecodable bytes are the uploader's problem (a 400 they can act on), not a server fault.
+        throw new BadRequestException({ error: 'IMAGE_INVALID', message: 'That file could not be read as an image' });
+      }
+    }
     await this.s.store.put(isPublic ? 'public' : 'evidence', p.key, stored);
     const sha = evidenceHash(stored);
     await this.s.prisma.evidence.update({ where: { id: row.id }, data: { sha256: sha, mime: isPublic ? 'image/webp' : row.mime } });
@@ -63,10 +71,25 @@ export class UploadsController {
       const member = await this.s.prisma.commitment.findUnique({ where: { poolId_memberAddress: { poolId: ev.poolId, memberAddress: wallet } } });
       isPoolParticipant = !!pool && (pool.organizerAddress === wallet || pool.supplierAddress === wallet || (member?.units ?? 0) > 0);
     }
-    if (!canReadEvidence({ userId: u.id, roles: u.roles, isPoolParticipant, disputeId: ev.disputeId, assignedArbiterFor: ev.disputeId ?? undefined })) {
+    // Evidence is uploaded before a dispute exists, so it is linked to the pool, not the dispute. An arbiter may read
+    // evidence of any pool that currently has an open dispute (and nothing else).
+    let disputeId = ev.disputeId;
+    if (disputeId === null && ev.poolId !== null && u.roles.includes('ARBITER')) {
+      disputeId = (await this.s.prisma.dispute.findFirst({ where: { poolId: ev.poolId, state: 'OPEN' } }))?.id ?? null;
+    }
+    if (!canReadEvidence({ userId: u.id, roles: u.roles, isPoolParticipant, disputeId, assignedArbiterFor: disputeId ?? undefined })) {
       throw new ForbiddenException('not allowed to read this evidence');
     }
     return signUrl(this.secret(), 'GET', ev.objectKey, u.id, this.s.now().getTime());
+  }
+
+  /** Public product photos only (kind PRODUCT): already resized, metadata-stripped WebP. Everything else needs a signed URL. */
+  @Public() @Get('images/:id') @Header('Cache-Control', 'public, max-age=86400, immutable')
+  async image(@Param('id') id: string) {
+    const ev = await this.s.prisma.evidence.findUnique({ where: { id } });
+    const bytes = ev && ev.kind === 'PRODUCT' && ev.sha256 ? await this.s.store.get('public', ev.objectKey) : null;
+    if (!ev || !bytes) throw new NotFoundException('image not found');
+    return new StreamableFile(bytes, { type: 'image/webp' });
   }
 
   @Public() @Get('evidence/file') @Header('Cache-Control', 'private, no-store')
