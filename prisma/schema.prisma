@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Lang {
+  EN
+  PCM
+  HA
+  YO
+  IG
+}
+
+enum OfferStatus {
+  DRAFT
+  LIVE
+  EXPIRED
+  TAKEN_DOWN
+}
+
+model User {
+  id            String     @id @default(cuid())
+  phone         String     @unique
+  displayName   String?
+  language      Lang       @default(EN)
+  walletAddress String?    @unique
+  status        String     @default("ACTIVE")
+  createdAt     DateTime   @default(now())
+  roles         UserRole[]
+  passkeys      Passkey[]
+  sessions      Session[]
+  trader        TraderProfile?
+  supplier      SupplierProfile?
+}
+
+/// role: TRADER | ORGANIZER | SUPPLIER | ARBITER | ADMIN
+model UserRole {
+  userId  String
+  role    String
+  level   Int     @default(0)
+  verHash String?
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@id([userId, role])
+}
+
+model Passkey {
+  id           String   @id
+  userId       String
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      Int      @default(0)
+  transports   String[]
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id])
+}
+
+model OtpChallenge {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, createdAt])
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  refreshHash String   @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model TraderProfile {
+  userId  String  @id
+  market  String?
+  state   String
+  lga     String
+  cluster String?
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+model SupplierProfile {
+  userId            String   @id
+  businessName      String
+  cacNumber         String
+  address           String
+  state             String
+  lga               String
+  categories        String[]
+  deliveryAreas     Json
+  bankName          String?
+  bankAccountMasked String?
+  kybStatus         String   @default("PENDING")
+  kybRecordId       String?
+  user              User     @relation(fields: [userId], references: [id])
+}
+
+/// result is encrypted at the application layer (AES-256-GCM).
+model VerificationRecord {
+  id          String   @id @default(cuid())
+  userId      String
+  kind        String
+  provider    String
+  providerRef String
+  result      Json
+  status      String
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Offer {
+  id            String      @id @default(cuid())
+  supplierId    String
+  title         String
+  brand         String?
+  description   String
+  unitLabel     String
+  category      String
+  perishable    Boolean     @default(false)
+  images        String[]
+  tiersNgn      Json
+  tiersUsdc     Json
+  fxQuoteId     String
+  moq           Int
+  maxUnits      Int
+  maxPerMember  Int
+  leadTimeHours Int
+  deliveryAreas Json
+  validUntil    DateTime
+  offerHash     String
+  status        OfferStatus @default(DRAFT)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([status, category])
+}
+
+/// Read model rebuilt from ChainEvent plus off-chain extras.
+model Pool {
+  id               BigInt   @id
+  offerId          String
+  organizerAddress String
+  supplierAddress  String
+  hubAddress       String
+  hubContact       String
+  hubHash          String
+  pickupWindow     Json
+  state            String
+  totalUnits       Int      @default(0)
+  receivedUnits    Int?
+  currentTierIdx   Int      @default(0)
+  currentUnitPrice Decimal  @default(0) @db.Decimal(38, 7)
+  finalUnitPrice   Decimal? @db.Decimal(38, 7)
+  advancePaid      Decimal  @default(0) @db.Decimal(38, 7)
+  offerHash        String   @default("")
+  filledAt         DateTime?
+  acceptedAt       DateTime?
+  dispatchedAt     DateTime?
+  deliveredAt      DateTime?
+  pickedUnits      Int      @default(0)
+  /// True from a short delivery until the contract emits alloc_ok.
+  allocationPending Boolean @default(false)
+  /// Set once push_refunds has walked every member.
+  refundsPushed    Boolean  @default(false)
+  fillDeadline     DateTime
+  escrowBalance    Decimal  @default(0) @db.Decimal(38, 7)
+  frozenAmount     Decimal  @default(0) @db.Decimal(38, 7)
+  shareSlug        String   @unique
+  lastEventLedger  Int      @default(0)
+
+  @@index([state, fillDeadline])
+}
+
+model Commitment {
+  poolId         BigInt
+  memberAddress  String
+  units          Int
+  paid           Decimal  @db.Decimal(38, 7)
+  allocatedUnits Int?
+  refundDue      Decimal? @db.Decimal(38, 7)
+  /// Total refund already paid out to the member.
+  refundClaimed  Decimal  @default(0) @db.Decimal(38, 7)
+  pickedUp       Boolean  @default(false)
+
+  @@id([poolId, memberAddress])
+}
+
+model Dispute {
+  id              BigInt   @id
+  poolId          BigInt
+  openerAddress   String
+  reason          String
+  claimedUnits    Int
+  claimedAmount   Decimal  @db.Decimal(38, 7)
+  state           String
+  outcome         Json?
+  arbiterAddress  String?
+  openedAt        DateTime
+  slaDueAt        DateTime
+  lastEventLedger Int      @default(0)
+
+  @@index([state, slaDueAt])
+}
+
+/// kind: DELIVERY | DISPUTE | WAYBILL
+model Evidence {
+  id        String   @id @default(cuid())
+  ownerId   String
+  poolId    BigInt?
+  disputeId BigInt?
+  kind      String
+  objectKey String
+  sha256    String
+  mime      String
+  createdAt DateTime @default(now())
+}
+
+model Bond {
+  supplierAddress String  @id
+  total           Decimal @db.Decimal(38, 7)
+  reserved        Decimal @db.Decimal(38, 7)
+  lastEventLedger Int     @default(0)
+}
+
+model AnchorTransfer {
+  id         String   @id
+  userId     String
+  kind       String
+  anchor     String
+  anchorTxId String
+  amountNgn  Decimal? @db.Decimal(38, 2)
+  amountUsdc Decimal? @db.Decimal(38, 7)
+  status     String
+  poolId     BigInt?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model FxQuote {
+  id        String   @id @default(cuid())
+  pair      String
+  rate      Decimal  @db.Decimal(38, 10)
+  sources   Json
+  createdAt DateTime @default(now())
+}
+
+model ChainEvent {
+  id          String    @id
+  ledger      Int
+  contract    String
+  topic       String
+  payload     Json
+  processedAt DateTime?
+
+  @@index([ledger])
+}
+
+model IndexerCursor {
+  id         String   @id
+  lastLedger Int
+  updatedAt  DateTime @updatedAt
+}
+
+model Notification {
+  id       String    @id @default(cuid())
+  userId   String
+  channel  String
+  template String
+  payload  Json
+  status   String
+  sentAt   DateTime?
+}
+
+model AuditLog {
+  id      String   @id @default(cuid())
+  actorId String
+  action  String
+  target  String
+  data    Json
+  at      DateTime @default(now())
+}
+
+model IdempotencyKey {
+  key       String   @id
+  userId    String
+  response  Json?
+  createdAt DateTime @default(now())
+}
+
+/// Daily fee-sponsorship counters per user (relayer caps).
+model SponsorUsage {
+  userId String
+  day    String
+  count  Int    @default(0)
+
+  @@id([userId, day])
+}
+
+/// Off-chain details of a pool being created; linked to the on-chain pool by hubHash when `pool_new` is indexed.
+model PendingPool {
+  id               String   @id @default(cuid())
+  hubHash          String   @unique
+  offerId          String
+  organizerAddress String
+  hubAddress       String
+  hubContact       String
+  pickupWindow     Json
+  fillDeadline     DateTime
+  shareSlug        String   @unique
+  createdAt        DateTime @default(now())
+}

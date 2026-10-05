@@ -1,22 +1,23 @@
-# sororail-backend
+# sorobanpool-backend
 
-API server for the Sororail app: serves data to [sororail-frontend](https://github.com/Sororail/sororail-frontend), handles user auth, and persists application state in Postgres.
-
-This repo previously held the SO4 oracle/keeper service; that code and its history now live on the [`legacy-oracle`](https://github.com/Sororail/sororail-backend/tree/legacy-oracle) branch.
-
-## Running locally
+NestJS backend for SorobanPool (API, workers, indexer, keeper, relayer). **Buy together. Pay on delivery.** Built on Stellar.
 
 ```
 cp .env.example .env
-# set DATABASE_URL to a running Postgres instance
-cargo run
+docker compose up -d postgres redis minio
+pnpm install && pnpm start:dev     # GET /health
+pnpm lint && pnpm build && pnpm test && pnpm test:e2e
 ```
+One codebase, role chosen by `ROLE=api|worker|indexer`. Status: M2 (backend core) — verified end to end on Stellar testnet (`test/e2e/m2-flow.e2e-spec.ts`).
 
-Migrations run automatically on startup via `sqlx::migrate!`.
+The product and architecture brief (source of truth): [sorobanpool-contracts/docs/brief.md](https://github.com/SorobanPool/sorobanpool-contracts/blob/main/docs/brief.md). Sibling repos: [contracts](https://github.com/SorobanPool/sorobanpool-contracts), [backend](https://github.com/SorobanPool/sorobanpool-backend), [frontend](https://github.com/SorobanPool/sorobanpool-frontend).
 
-## Endpoints
+## Verify
+```
+pnpm lint && pnpm exec tsc --noEmit && pnpm build && pnpm test          # 126+ tests, real Postgres semantics via PGlite
+E2E_TESTNET=1 SPONSOR_SECRET=S... pnpm test:e2e                          # live testnet: full group-buy lifecycle through the API
+```
+Docs: `docs/api.md`, `docs/decisions/`, `docs/runbooks/`.
 
-- `GET /health` — liveness
-- `GET /ready` — readiness (checks DB connectivity)
-- `POST /auth/register` — create a user, returns a JWT
-- `POST /auth/login` — authenticate, returns a JWT
+## Not done yet (M2 scope gaps)
+BullMQ scheduling (ADR 0002), S3-compatible object storage (local filesystem store only), passkey smart wallets and passkey endpoints (ADR 0003), real KYC/KYB and SMS/WhatsApp providers, notification dispatch and reminder jobs, `offer-expiry`, `fx-refresh` and `reconcile` jobs, WebSocket realtime, rate limiting, OpenAPI generation, anchor/naira rails (M5), Testcontainers CI.
