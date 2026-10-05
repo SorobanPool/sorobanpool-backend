@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Patch, Post, Put } from '@nestjs/common';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
@@ -74,6 +74,20 @@ export class UsersController {
     const b = parse(z.object({ displayName: z.string().min(1).max(80).optional(), language: z.enum(['EN', 'PCM', 'HA', 'YO', 'IG']).optional() }), body);
     await this.s.prisma.user.update({ where: { id: u.id }, data: b });
     return this.me(u);
+  }
+
+  /** Where the trader trades. `cluster` (a slug of the market) lets organizers restrict a pool to one market. */
+  @Put('me/profile')
+  async setProfile(@CurrentUser() u: AuthedUser, @Body() body: unknown) {
+    const b = parse(z.object({ market: z.string().min(2).max(80), state: z.string().min(2).max(40), lga: z.string().min(2).max(60) }), body);
+    const cluster = b.market.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30);
+    const row = await this.s.prisma.traderProfile.upsert({ where: { userId: u.id }, create: { userId: u.id, ...b, cluster }, update: { ...b, cluster } });
+    return { market: row.market, state: row.state, lga: row.lga, cluster: row.cluster };
+  }
+
+  @Get('me/profile')
+  async getProfile(@CurrentUser() u: AuthedUser) {
+    return (await this.s.prisma.traderProfile.findUnique({ where: { userId: u.id } })) ?? null;
   }
 
   /** Step 1 of wallet binding: a random challenge the wallet must sign. */
