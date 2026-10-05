@@ -63,7 +63,13 @@ export class UploadsController {
       const member = await this.s.prisma.commitment.findUnique({ where: { poolId_memberAddress: { poolId: ev.poolId, memberAddress: wallet } } });
       isPoolParticipant = !!pool && (pool.organizerAddress === wallet || pool.supplierAddress === wallet || (member?.units ?? 0) > 0);
     }
-    if (!canReadEvidence({ userId: u.id, roles: u.roles, isPoolParticipant, disputeId: ev.disputeId, assignedArbiterFor: ev.disputeId ?? undefined })) {
+    // Evidence is uploaded before a dispute exists, so it is linked to the pool, not the dispute. An arbiter may read
+    // evidence of any pool that currently has an open dispute (and nothing else).
+    let disputeId = ev.disputeId;
+    if (disputeId === null && ev.poolId !== null && u.roles.includes('ARBITER')) {
+      disputeId = (await this.s.prisma.dispute.findFirst({ where: { poolId: ev.poolId, state: 'OPEN' } }))?.id ?? null;
+    }
+    if (!canReadEvidence({ userId: u.id, roles: u.roles, isPoolParticipant, disputeId, assignedArbiterFor: disputeId ?? undefined })) {
       throw new ForbiddenException('not allowed to read this evidence');
     }
     return signUrl(this.secret(), 'GET', ev.objectKey, u.id, this.s.now().getTime());
