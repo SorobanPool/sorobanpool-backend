@@ -142,3 +142,17 @@ describe('auth and sponsorship on Postgres', () => {
     expect((await t.prisma.sponsorUsage.findUniqueOrThrow({ where: { userId_day: { userId: 'u1', day: '2026-10-05' } } })).count).toBe(4);
   });
 });
+
+describe('keeper bookkeeping', () => {
+  it('stops scanning a final pool once its escrow is zero, and keeps scanning one that still owes money', async () => {
+    const { keeperTick } = await import('../src/workers/runners.js');
+    const mk = (id: bigint, escrow: string, slug: string) => t.prisma.pool.create({
+      data: { id, offerId: 'x', organizerAddress: 'o', supplierAddress: 's', hubAddress: 'h', hubContact: 'c', hubHash: slug, pickupWindow: {}, state: 'Settled', fillDeadline: new Date(0), shareSlug: slug, escrowBalance: escrow },
+    });
+    await mk(990001n, '0', 'done'); await mk(990002n, '12.5', 'owes');
+    const chain = { view: async () => ({ accept_window_secs: 1n, delivery_grace_secs: 1n, confirm_window_secs: 1n, perishable_confirm_window_secs: 1n, early_release_weight_bp: 6000, arbitration_sla_secs: 1n }), invokeServer: async () => ({ hash: 'h', returnValue: 3 }) };
+    await keeperTick({ prisma: t.prisma, chain, now: () => new Date() } as never);
+    expect((await t.prisma.pool.findUniqueOrThrow({ where: { id: 990001n } })).refundsPushed).toBe(true);
+    expect((await t.prisma.pool.findUniqueOrThrow({ where: { id: 990002n } })).refundsPushed).toBe(false);
+  });
+});

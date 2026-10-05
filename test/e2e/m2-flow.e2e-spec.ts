@@ -161,6 +161,9 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
     const pub = await http().post(`/v1/offers/${offer.body.id}/publish`).set(auth(supplier.token)).expect(200);
     const tiers = (pub.body.tiersUsdc as { minUnits: number; unitPrice: string }[]).map((t) => ({ minUnits: t.minUnits, price: BigInt(t.unitPrice) }));
 
+    // The group_buy contract is shared by every pool on this deployment; measure what THIS pool leaves behind.
+    const escrowBefore = await usdcBalance(deployments.contracts.group_buy.id);
+
     // ---- pool ----
     const deadline = new Date(Date.now() + 90_000);
     const prep = await http().post('/v1/pools/prepare').set(auth(organizer.token)).send({
@@ -221,7 +224,13 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
 
     // ---- members collect; early release lets the keeper settle ----
     for (const t of traders.slice(0, 4)) await act(t, `/v1/pools/${poolId}/pickup/prepare`, {});
-    await sync(async () => { await keeperTick(s); return (await db.prisma.pool.findUniqueOrThrow({ where: { id: pool.id } })).state === 'Settled'; }, 'Settled');
+    // Tick the keeper only until the pool is settled: its push-refunds job would otherwise pay everyone before
+    // the two members below claim by hand, and we want to exercise both refund paths.
+    await sync(async () => {
+      if ((await db.prisma.pool.findUniqueOrThrow({ where: { id: pool.id } })).state === 'Settled') return true;
+      await keeperTick(s);
+      return false;
+    }, 'Settled');
 
     // ---- refunds: two members claim via the API, the keeper pushes the rest ----
     const balBefore = await Promise.all(traders.map((t) => usdcBalance(t.kp.publicKey())));
@@ -239,6 +248,7 @@ describe.skipIf(!enabled)('M2 acceptance flow on testnet', () => {
     const after = await Promise.all(traders.map((t) => usdcBalance(t.kp.publicKey())));
     const totalRefunds = after.reduce((a, b, i) => a + (b - balBefore[i]!), 0n);
     expect(totalRefunds).toBe(totalPaid - gross); // every stroop of tier difference and shortfall came back
-    expect(await usdcBalance(deployments.contracts.group_buy.id)).toBeLessThan(10n); // nothing left in escrow but rounding dust
+    const leftBehind = (await usdcBalance(deployments.contracts.group_buy.id)) - escrowBefore;
+    expect(leftBehind >= 0n && leftBehind < 10n).toBe(true); // this pool leaves nothing in escrow but rounding dust
   }, 900_000);
 });
