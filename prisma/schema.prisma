@@ -170,6 +170,12 @@ model Pool {
   dispatchedAt     DateTime?
   deliveredAt      DateTime?
   pickedUnits      Int      @default(0)
+  /// Recorded from the `settled` event so statements and the risk dashboard never recompute fees.
+  supplierNet      Decimal  @default(0) @db.Decimal(38, 7)
+  platformFee      Decimal  @default(0) @db.Decimal(38, 7)
+  organizerFee     Decimal  @default(0) @db.Decimal(38, 7)
+  endedAt        DateTime?
+  indexedAt        DateTime @default(now())
   /// True from a short delivery until the contract emits alloc_ok.
   allocationPending Boolean @default(false)
   /// Set once push_refunds has walked every member.

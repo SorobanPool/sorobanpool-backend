@@ -27,7 +27,7 @@ export const HANDLERS: Record<string, Handler> = {
       offerHash: hex(offerHash), hubHash: hex(hubHash), state: 'Open', totalUnits: 0,
       receivedUnits: null, currentTierIdx: 0, finalUnitPrice: 0n, escrowBalance: 0n, frozenAmount: 0n,
       advancePaid: 0n, filledAt: null, acceptedAt: null, dispatchedAt: null, deliveredAt: null,
-      pickedUnits: 0, allocationPending: false, refundsPushed: false, lastEventLedger: ev.ledger,
+      pickedUnits: 0, supplierNet: 0n, platformFee: 0n, organizerFee: 0n, endedAt: null, allocationPending: false, refundsPushed: false, lastEventLedger: ev.ledger,
     });
   },
   'group_buy.committed': commit,
@@ -49,11 +49,11 @@ export const HANDLERS: Record<string, Handler> = {
     const p = await mustPool(s, ev.key);
     await s.savePool({ ...p, state: 'Filled', totalUnits: asNum(total), finalUnitPrice: asBig(price), filledAt: ev.closedAt });
   },
-  'group_buy.expired': setState('Expired'),
-  'group_buy.cancelled': setState('Cancelled'),
+  'group_buy.expired': setState('Expired', (_, ev) => ({ endedAt: ev.closedAt })),
+  'group_buy.cancelled': setState('Cancelled', (_, ev) => ({ endedAt: ev.closedAt })),
   'group_buy.accepted': setState('Accepted', (_, ev) => ({ acceptedAt: ev.closedAt })),
-  'group_buy.rejected': setState('Failed'),
-  'group_buy.failed': setState('Failed'),
+  'group_buy.rejected': setState('Failed', (_, ev) => ({ endedAt: ev.closedAt })),
+  'group_buy.failed': setState('Failed', (_, ev) => ({ endedAt: ev.closedAt })),
   'group_buy.dispatch': setState('Dispatched', (_, ev) => ({ dispatchedAt: ev.closedAt })),
   'group_buy.advance': async (ev, s) => {
     const p = await mustPool(s, ev.key);
@@ -84,7 +84,10 @@ export const HANDLERS: Record<string, Handler> = {
   'group_buy.settled': async (ev, s) => {
     const [supplierNet, platform, organizer] = tuple(ev.data).map(asBig) as [bigint, bigint, bigint];
     const p = await mustPool(s, ev.key);
-    await s.savePool({ ...p, state: 'Settled', escrowBalance: p.escrowBalance - supplierNet - platform - organizer });
+    await s.savePool({
+      ...p, state: 'Settled', escrowBalance: p.escrowBalance - supplierNet - platform - organizer,
+      supplierNet: p.supplierNet + supplierNet, platformFee: p.platformFee + platform, organizerFee: p.organizerFee + organizer, endedAt: ev.closedAt,
+    });
   },
   'group_buy.refund': async (ev, s) => {
     const [member, amount] = tuple(ev.data);

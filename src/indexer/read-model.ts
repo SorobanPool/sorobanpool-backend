@@ -22,6 +22,12 @@ export interface PoolRow {
   dispatchedAt: Date | null;
   deliveredAt: Date | null;
   pickedUnits: number;
+  /** From the `settled` event: what the supplier, the platform and the organizer were paid. */
+  supplierNet: bigint;
+  platformFee: bigint;
+  organizerFee: bigint;
+  /** When the pool ended (settled, expired, failed or cancelled). */
+  endedAt: Date | null;
   /** True from a short delivery until alloc_ok. */
   allocationPending: boolean;
   refundsPushed: boolean;
