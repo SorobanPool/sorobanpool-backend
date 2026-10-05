@@ -33,7 +33,7 @@ export function inspectUserTx(txXdr: string, rules: InspectRules): InspectedTx {
   const parsed = TransactionBuilder.fromXDR(txXdr, rules.passphrase);
   if (!(parsed instanceof Transaction)) throw new TxRejected('NOT_PLAIN_TX', 'fee-bump transactions are not accepted from clients');
   if (parsed.source !== rules.sponsor) throw new TxRejected('BAD_SOURCE', 'transaction source must be the sponsor account');
-  if (Number(parsed.fee) > rules.maxFeeStroops) throw new TxRejected('FEE_TOO_HIGH', 'transaction fee exceeds the sponsor limit');
+  if (Number(parsed.fee) > rules.maxFeeStroops) throw new TxRejected('FEE_TOO_HIGH', `transaction fee ${parsed.fee} stroops exceeds the sponsor limit of ${rules.maxFeeStroops}`);
   if (parsed.operations.length !== 1) throw new TxRejected('BAD_OPS', 'exactly one operation is required');
   const op = parsed.operations[0]!;
   if (op.type !== 'invokeHostFunction') throw new TxRejected('BAD_OP_TYPE', 'only contract invocations are sponsored');

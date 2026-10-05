@@ -9,18 +9,23 @@ import type { PoolState } from '../indexer/read-model.js';
 import { CONTRACT_NAMES } from '../chain/deployments.js';
 import type { Services } from '../app/services.js';
 
-/** Soroban RPC adapter for the indexer. */
-export function rpcPort(server: rpc.Server): RpcPort {
+/**
+ * Soroban RPC adapter for the indexer. The Indexer treats `endLedger` as inclusive, but the RPC's `endLedger`
+ * is EXCLUSIVE (verified live: start=N,end=N returns nothing; start=N,end=N+1 returns ledger N). Passing it
+ * through unchanged silently loses every event in the newest ledger of each polling window, so it is shifted by one.
+ */
+export function rpcPort(server: Pick<rpc.Server, 'getLatestLedger' | 'getHealth' | 'getEvents'>): RpcPort {
   return {
     latestLedger: async () => (await server.getLatestLedger()).sequence,
     oldestLedger: async () => (await server.getHealth()).oldestLedger,
     getEvents: async (startLedger, endLedger, contractIds) => {
+      // Soroban RPC allows at most 5 contract ids per filter (and 5 filters).
+      const filters: { type: 'contract'; contractIds: string[] }[] = [];
+      for (let i = 0; i < contractIds.length; i += 5) filters.push({ type: 'contract', contractIds: contractIds.slice(i, i + 5) });
       const out: RawEvent[] = [];
       let cursor: string | undefined;
       for (let page = 0; page < 50; page++) {
-        const res = await server.getEvents(
-          cursor ? { cursor, filters: [{ type: 'contract', contractIds }], limit: 200 } : { startLedger, endLedger, filters: [{ type: 'contract', contractIds }], limit: 200 },
-        );
+        const res = await server.getEvents(cursor ? { cursor, filters, limit: 200 } : { startLedger, endLedger: endLedger + 1, filters, limit: 200 });
         for (const e of res.events) {
           out.push({
             id: e.id, ledger: e.ledger, ledgerClosedAt: e.ledgerClosedAt, contractId: String(e.contractId ?? ''),
@@ -129,5 +134,14 @@ export function startKeeper(s: Services, intervalMs = 15_000): Runner {
   return every('keeper', intervalMs, async () => {
     const r = await keeperTick(s);
     if (r.ok || r.errored) console.log(`[keeper] ok=${r.ok} refused=${r.refused} errored=${r.errored}`);
+  });
+}
+
+/** Hourly: extend contract instance/code TTL before they lapse. A missing entry is a paging-level problem. */
+export function startTtlKeeper(s: Services, intervalMs = 3_600_000): Runner {
+  return every('ttl-extend', intervalMs, async () => {
+    const r = await s.chain.keepAlive();
+    if (r.missing.length) console.error(`[ttl-extend] ALERT entries not found (archived?): ${r.missing.join(', ')}`);
+    if (r.extended.length) console.log(`[ttl-extend] extended ${r.extended.join(', ')} in ${r.txHash}`);
   });
 }

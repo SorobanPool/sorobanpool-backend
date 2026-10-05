@@ -4,6 +4,7 @@ import {
 } from '@stellar/stellar-sdk';
 import { type ContractName, contractId, type Deployments } from './deployments.js';
 import { credentialAddress, inspectUserTx } from './inspect.js';
+import { extendTtl, instanceAndCodeKeys, needsExtension, ttlStatus } from './ttl.js';
 
 export const MAX_FEE_STROOPS = 50_000_000; // 5 XLM: a hard ceiling per sponsored transaction
 const AUTH_VALID_LEDGERS = 60; // ~5 minutes
@@ -79,10 +80,15 @@ export class ChainService {
 
   /** Read-only call (simulated, never submitted). */
   async view<T = unknown>(name: ContractName, fn: string, args: xdr.ScVal[] = []): Promise<T> {
+    return this.viewAt<T>(this.id(name), fn, args);
+  }
+
+  /** Read-only call against any contract id (e.g. the USDC token). */
+  async viewAt<T = unknown>(contract: string, fn: string, args: xdr.ScVal[] = []): Promise<T> {
     const acct = await this.server.getAccount(this.sponsorAddress);
     const tx = new TransactionBuilder(new Account(acct.accountId(), acct.sequenceNumber()), {
       fee: BASE_FEE, networkPassphrase: this.o.passphrase,
-    }).addOperation(new Contract(this.id(name)).call(fn, ...args)).setTimeout(60).build();
+    }).addOperation(new Contract(contract).call(fn, ...args)).setTimeout(60).build();
     const sim = await this.server.simulateTransaction(tx);
     if (rpc.Api.isSimulationError(sim)) throw new Error(`view ${fn} failed: ${sim.error}`);
     const ret = (sim as rpc.Api.SimulateTransactionSuccessResponse).result?.retval;
@@ -131,6 +137,22 @@ export class ChainService {
       tx = await this.build(this.id(name), fn, args, signed);
     }
     return this.send(tx);
+  }
+
+  /**
+   * Keeps every contract's instance and code alive (ADR 0005). Extends only entries with under ~20 days left,
+   * and reports entries the RPC cannot find: those are archived or misconfigured and need a human.
+   */
+  async keepAlive(): Promise<{ extended: string[]; missing: string[]; txHash?: string }> {
+    const keys = instanceAndCodeKeys(this.o.deployments);
+    const { extend, missing } = needsExtension(await ttlStatus(this.server, keys));
+    const label = (s: { contract: string; kind: string }) => `${s.contract}.${s.kind}`;
+    if (!extend.length) return { extended: [], missing: missing.map(label) };
+    const wanted = new Set(extend.map(label));
+    const txHash = await this.lock.run(() =>
+      extendTtl(this.server, this.o.sponsor, this.o.passphrase, keys.filter((k) => wanted.has(label(k))).map((k) => k.key)),
+    );
+    return { extended: [...wanted], missing: missing.map(label), txHash };
   }
 
   private send(tx: Transaction): Promise<TxResult> {
