@@ -350,3 +350,20 @@ describe('fx quote', () => {
     h.s.fx = original;
   });
 });
+
+describe('public product images', () => {
+  it('serves only PRODUCT photos, as WebP, to anyone', async () => {
+    const s = await approvedSupplier();
+    const png = await sharp({ create: { width: 800, height: 600, channels: 3, background: '#a60' } }).png().toBuffer();
+    const sign = await h.http().post('/v1/uploads/sign').set(auth(s.token)).send({ kind: 'PRODUCT', mime: 'image/png', size: png.length }).expect(201);
+    await h.http().put(sign.body.uploadUrl).set('Content-Type', 'image/png').send(png).expect(200);
+    const img = await h.http().get(`/v1/images/${sign.body.evidenceId}`).buffer(true).parse((res, cb) => { const c: Buffer[] = []; res.on('data', (d: Buffer) => c.push(d)); res.on('end', () => cb(null, Buffer.concat(c))); }).expect(200);
+    expect(img.headers['content-type']).toBe('image/webp');
+    expect((await sharp(img.body as Buffer).metadata()).width).toBe(640);
+    // delivery/dispute evidence is never served this way
+    const t = await h.login(newPhone());
+    const ev = await h.http().post('/v1/uploads/sign').set(auth(t.token)).send({ kind: 'DISPUTE', mime: 'image/png', size: png.length, poolId: '7' }).expect(201);
+    await h.http().put(ev.body.uploadUrl).set('Content-Type', 'image/png').send(png).expect(200);
+    await h.http().get(`/v1/images/${ev.body.evidenceId}`).expect(404);
+  });
+});
