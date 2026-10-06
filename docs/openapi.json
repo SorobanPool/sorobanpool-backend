@@ -571,6 +571,94 @@
         }
       }
     },
+    "/v1/auth/passkey/login/options": {
+      "post": {
+        "operationId": "PasskeyController.loginOptions",
+        "tags": [
+          "Passkey"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/passkey/login/verify": {
+      "post": {
+        "operationId": "PasskeyController.loginVerify",
+        "tags": [
+          "Passkey"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/passkey/register/options": {
+      "post": {
+        "operationId": "PasskeyController.registerOptions",
+        "tags": [
+          "Passkey"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
+    "/v1/auth/passkey/register/verify": {
+      "post": {
+        "operationId": "PasskeyController.registerVerify",
+        "tags": [
+          "Passkey"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/v1/auth/refresh": {
       "post": {
         "operationId": "AuthController.refresh",
