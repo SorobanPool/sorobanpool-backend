@@ -9,7 +9,7 @@ import type { PoolState } from '../indexer/read-model.js';
 import { CONTRACT_NAMES } from '../chain/deployments.js';
 import type { Services } from '../app/services.js';
 import { combineQuotes } from '../fx/fx.js';
-import { dispatchDue, NotificationProducer } from '../notifications/dispatcher.js';
+import { dispatchDue, NotificationProducer, queueDeadlineReminders } from '../notifications/dispatcher.js';
 import { checkSponsor, expireOffers } from './maintenance.js';
 
 /**
@@ -158,6 +158,8 @@ export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
   return every('maintenance', intervalMs, async () => {
     const n = await expireOffers(s.prisma, s.now());
     if (n) console.log(`[maintenance] expired ${n} offer(s)`);
+    const reminded = await queueDeadlineReminders(s.prisma, s.now());
+    if (reminded) console.log(`[maintenance] queued ${reminded} deadline reminder(s)`);
     const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);
     if (h.low) console.error(`[maintenance] ALERT sponsor balance ${Number(h.balanceStroops) / 1e7} XLM is below ${s.env.SPONSOR_MIN_XLM}`);
   });

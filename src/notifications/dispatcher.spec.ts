@@ -1,4 +1,4 @@
-import { dispatchDue, enqueue, MAX_ATTEMPTS, NotificationProducer } from './dispatcher.js';
+import { dispatchDue, enqueue, MAX_ATTEMPTS, NotificationProducer, queueDeadlineReminders } from './dispatcher.js';
 import { startHarness, type Harness } from '../../test/harness.js';
 import type { DecodedEvent } from '../indexer/decode.js';
 
@@ -66,5 +66,26 @@ describe('notification dispatcher', () => {
     expect(msg).toContain('Mama Gold Rice');
     expect(msg).toContain('N1,200/unit'); // 0.8 USDC * 1500
     expect(msg).toContain('N30,000'); // refund (100 - 100*0.8) * 1500
+  });
+
+  it('reminds members once when an open pool is within 24h of its deadline and below MOQ', async () => {
+    const wallet = 'GREMINDWALLET';
+    const u = await user('+2348020000005', 'PCM', wallet);
+    const offer = await db().offer.create({ data: {
+      supplierId: u.id, title: 'Garri Sack', description: 'd', unitLabel: 'bag', category: 'garri', images: [], tiersNgn: [], tiersUsdc: [], fxQuoteId: 'q',
+      moq: 100, maxUnits: 500, maxPerMember: 50, leadTimeHours: 24, deliveryAreas: [], validUntil: day, offerHash: 'h2', status: 'LIVE' } });
+    const mk = (id: bigint, hoursLeft: number, totalUnits: number) => db().pool.create({ data: { id, offerId: offer.id, organizerAddress: 'o', supplierAddress: 's', hubAddress: 'h', hubContact: 'c', hubHash: 'hh',
+      pickupWindow: {}, state: 'Open', totalUnits, fillDeadline: new Date(day.getTime() + hoursLeft * 3_600_000), shareSlug: `slug${id}` } });
+    await mk(601n, 10, 40); // due, short of MOQ
+    await mk(602n, 48, 40); // too far away
+    await mk(603n, 10, 120); // MOQ already reached
+    for (const id of [601n, 602n, 603n]) await db().commitment.create({ data: { poolId: id, memberAddress: wallet, units: 10, paid: '10' } });
+    expect(await queueDeadlineReminders(db(), day)).toBe(1);
+    expect(await queueDeadlineReminders(db(), day)).toBe(0); // not twice
+    const s = sms();
+    await dispatchDue(db(), s, day);
+    const msg = s.sent.find((m) => m.phone === '+2348020000005')!.text;
+    expect(msg).toContain('Garri Sack go close in 10h');
+    expect(msg).toContain('60 units');
   });
 });

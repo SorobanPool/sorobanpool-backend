@@ -190,6 +190,8 @@ model Pool {
   /// Set once push_refunds has walked every member.
   refundsPushed    Boolean  @default(false)
   fillDeadline     DateTime
+  /// Set once the 24h deadline reminder has been queued, so it is never sent twice.
+  deadlineRemindedAt DateTime?
   escrowBalance    Decimal  @default(0) @db.Decimal(38, 7)
   frozenAmount     Decimal  @default(0) @db.Decimal(38, 7)
   shareSlug        String   @unique
