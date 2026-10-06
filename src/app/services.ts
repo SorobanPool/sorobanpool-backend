@@ -10,6 +10,7 @@ import { TokenService } from '../auth/token.service.js';
 import { SponsorshipPolicy } from '../relayer/allowlist.js';
 import type { FxSourceQuote } from '../fx/fx.js';
 import { MockAnchor, type AnchorProvider } from '../anchor/anchor.js';
+import { createReporter, type ErrorReporter } from '../observability/errors.js';
 import { LocalObjectStore, S3ObjectStore, type ObjectStore } from '../evidence/store.js';
 import { PrismaOtpStore, PrismaSessionStore, PrismaUsageStore } from '../persistence/prisma-stores.js';
 
@@ -48,6 +49,7 @@ export interface Services {
   chain: ChainPort;
   otp: OtpService;
   sms: SmsSender;
+  reporter: ErrorReporter;
   tokens: TokenService;
   policy: SponsorshipPolicy;
   fx: FxProvider;
@@ -62,6 +64,7 @@ export interface Services {
 export interface BuildOverrides {
   chain?: ChainPort;
   sms?: SmsSender;
+  reporter?: ErrorReporter;
   fx?: FxProvider;
   now?: () => Date;
   attestor?: Keypair;
@@ -80,6 +83,7 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
   const sms = o.sms ?? new ConsoleSmsSender(env.OTP_DEV_ECHO);
   const services: Services = {
     sms,
+    reporter: o.reporter ?? createReporter(env.SENTRY_DSN, env.NODE_ENV),
     env, prisma, deployments, chain, attestor, now,
     store: o.store ?? (env.OBJECT_STORE === 's3'
       ? new S3ObjectStore({

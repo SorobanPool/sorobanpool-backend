@@ -7,6 +7,7 @@ import { dueActions, runKeeper, type ChainPort as KeeperChain, type KeeperAction
 import { PrismaCursorStore, PrismaEventSink, PrismaReadStore } from '../persistence/prisma-stores.js';
 import type { PoolState } from '../indexer/read-model.js';
 import { CONTRACT_NAMES } from '../chain/deployments.js';
+import type { ErrorReporter } from '../observability/errors.js';
 import type { Services } from '../app/services.js';
 import { combineQuotes } from '../fx/fx.js';
 import { dispatchDue, NotificationProducer, queueDeadlineReminders } from '../notifications/dispatcher.js';
@@ -48,7 +49,7 @@ export interface Runner {
 }
 
 /** Runs `fn` every `ms`, never overlapping, logging failures instead of crashing the process. */
-function every(name: string, ms: number, fn: () => Promise<void>): Runner {
+function every(name: string, ms: number, fn: () => Promise<void>, reporter?: ErrorReporter): Runner {
   let busy = false;
   const t = setInterval(async () => {
     if (busy) return;
@@ -57,6 +58,7 @@ function every(name: string, ms: number, fn: () => Promise<void>): Runner {
       await fn();
     } catch (e) {
       console.error(`[${name}] ${(e as Error).message}`);
+      reporter?.capture(e, name);
     } finally {
       busy = false;
     }
@@ -74,7 +76,7 @@ export function startIndexer(s: Services, server: rpc.Server, intervalMs = 5000)
   const runner = every('indexer', intervalMs, async () => {
     await indexer.tick();
     if (indexer.shouldAlert) console.error(`[indexer] ALERT lag=${indexer.metrics.lag} ledgers`);
-  });
+  }, s.reporter);
   return { runner, indexer };
 }
 
@@ -141,7 +143,7 @@ export function startKeeper(s: Services, intervalMs = 15_000): Runner {
   return every('keeper', intervalMs, async () => {
     const r = await keeperTick(s);
     if (r.ok || r.errored) console.log(`[keeper] ok=${r.ok} refused=${r.refused} errored=${r.errored}`);
-  });
+  }, s.reporter);
 }
 
 /** Hourly: extend contract instance/code TTL before they lapse. A missing entry is a paging-level problem. */
@@ -150,7 +152,7 @@ export function startTtlKeeper(s: Services, intervalMs = 3_600_000): Runner {
     const r = await s.chain.keepAlive();
     if (r.missing.length) console.error(`[ttl-extend] ALERT entries not found (archived?): ${r.missing.join(', ')}`);
     if (r.extended.length) console.log(`[ttl-extend] extended ${r.extended.join(', ')} in ${r.txHash}`);
-  });
+  }, s.reporter);
 }
 
 /** Every 5 minutes: expire stale offers and page when the fee sponsor runs low. */
@@ -165,7 +167,7 @@ export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
     for (const m of bad) console.error(`[reconcile] ALERT pool ${m.poolId} ${m.field}: db=${m.db} chain=${m.chain}`);
     const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);
     if (h.low) console.error(`[maintenance] ALERT sponsor balance ${Number(h.balanceStroops) / 1e7} XLM is below ${s.env.SPONSOR_MIN_XLM}`);
-  });
+  }, s.reporter);
 }
 
 /** Every 30 seconds: send due SMS (quiet hours are applied when queued; failures back off). */
@@ -173,5 +175,5 @@ export function startNotifier(s: Services, intervalMs = 30_000): Runner {
   return every('notifier', intervalMs, async () => {
     const r = await dispatchDue(s.prisma, s.sms, s.now());
     if (r.sent || r.failed) console.log(`[notifier] sent=${r.sent} retried=${r.retried} failed=${r.failed}`);
-  });
+  }, s.reporter);
 }
