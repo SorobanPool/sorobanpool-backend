@@ -384,7 +384,7 @@ describe('reports: supplier statement and admin risk overview', () => {
     const hub = Keypair.random().publicKey();
     const apply = (r: ReturnType<typeof raw>) => proj.apply(decodeEvent(r)!);
     await h.db.prisma.pendingPool.create({ data: { hubHash: id.toString(16).padStart(64, '0'), offerId, organizerAddress: hub, hubAddress: 'Gate', hubContact: '0803', pickupWindow: {}, fillDeadline: new Date(), shareSlug: `st${id}` } });
-    const hubBytes = nativeToScVal(Buffer.alloc(32, Number(id % 200n)));
+    const hubBytes = nativeToScVal(Buffer.from(id.toString(16).padStart(64, '0'), 'hex'));
     await apply(raw('group_buy', 'pool_new', u64(id), tup(a(hub), a(supplierWallet), bytes(7), hubBytes), 10));
     await apply(raw('group_buy', 'committed', u64(id), tup(a(Keypair.random().publicKey()), u32(100), i128(1_000_000_000n)), 11));
     await apply(raw('group_buy', 'filled', u64(id), tup(u32(100), i128(10_000_000n)), 12));
