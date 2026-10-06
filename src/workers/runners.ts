@@ -8,6 +8,8 @@ import { PrismaCursorStore, PrismaEventSink, PrismaReadStore } from '../persiste
 import type { PoolState } from '../indexer/read-model.js';
 import { CONTRACT_NAMES } from '../chain/deployments.js';
 import type { Services } from '../app/services.js';
+import { combineQuotes } from '../fx/fx.js';
+import { dispatchDue, NotificationProducer } from '../notifications/dispatcher.js';
 import { checkSponsor, expireOffers } from './maintenance.js';
 
 /**
@@ -64,8 +66,10 @@ function every(name: string, ms: number, fn: () => Promise<void>): Runner {
 
 export function startIndexer(s: Services, server: rpc.Server, intervalMs = 5000): { runner: Runner; indexer: Indexer } {
   const ids = CONTRACT_NAMES.map((n) => s.deployments.contracts[n].id);
+  const producer = new NotificationProducer(s.prisma, async () => combineQuotes(await s.fx.quotes(), s.now()).rate, s.now);
   const indexer = new Indexer(
-    rpcPort(server), new PrismaCursorStore(s.prisma), new PrismaEventSink(s.prisma), new Projector(new PrismaReadStore(s.prisma)), ids, s.env.INDEXER_START_LEDGER,
+    rpcPort(server), new PrismaCursorStore(s.prisma), new PrismaEventSink(s.prisma), new Projector(new PrismaReadStore(s.prisma)), ids, s.env.INDEXER_START_LEDGER, 1000,
+    (ev) => producer.onEvent(ev),
   );
   const runner = every('indexer', intervalMs, async () => {
     await indexer.tick();
@@ -156,5 +160,13 @@ export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
     if (n) console.log(`[maintenance] expired ${n} offer(s)`);
     const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);
     if (h.low) console.error(`[maintenance] ALERT sponsor balance ${Number(h.balanceStroops) / 1e7} XLM is below ${s.env.SPONSOR_MIN_XLM}`);
+  });
+}
+
+/** Every 30 seconds: send due SMS (quiet hours are applied when queued; failures back off). */
+export function startNotifier(s: Services, intervalMs = 30_000): Runner {
+  return every('notifier', intervalMs, async () => {
+    const r = await dispatchDue(s.prisma, s.sms, s.now());
+    if (r.sent || r.failed) console.log(`[notifier] sent=${r.sent} retried=${r.retried} failed=${r.failed}`);
   });
 }

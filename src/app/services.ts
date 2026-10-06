@@ -47,6 +47,7 @@ export interface Services {
   deployments: Deployments;
   chain: ChainPort;
   otp: OtpService;
+  sms: SmsSender;
   tokens: TokenService;
   policy: SponsorshipPolicy;
   fx: FxProvider;
@@ -76,10 +77,12 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
   const attestor = o.attestor ?? Keypair.fromSecret(resolveSecret(env.ATTESTOR_SECRET_REF, env.NODE_ENV));
   const offMainnet = env.NODE_ENV !== 'production' && env.STELLAR_NETWORK !== 'mainnet';
   const fx = o.fx ?? new StaticFxProvider(env.FX_STATIC.split(',').map(Number).filter((n) => n > 0));
+  const sms = o.sms ?? new ConsoleSmsSender(env.OTP_DEV_ECHO);
   const services: Services = {
+    sms,
     env, prisma, deployments, chain, attestor, now,
     store: o.store ?? new LocalObjectStore(env.EVIDENCE_DIR),
-    otp: new OtpService(new PrismaOtpStore(prisma), o.sms ?? new ConsoleSmsSender(env.OTP_DEV_ECHO), env.OTP_HMAC_SECRET, now, o.otpRandom),
+    otp: new OtpService(new PrismaOtpStore(prisma), sms, env.OTP_HMAC_SECRET, now, o.otpRandom),
     tokens: new TokenService(env.JWT_SECRET, new PrismaSessionStore(prisma), now),
     policy: new SponsorshipPolicy(contractNameMap(deployments), new PrismaUsageStore(prisma), undefined, now),
     fx,
