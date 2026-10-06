@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, HttpCode, Inject, NotFoundException, Param, Post, UnauthorizedException } from '@nestjs/common';
 import {
   generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse,
   type AuthenticationResponseJSON, type RegistrationResponseJSON,
@@ -29,6 +29,22 @@ export class PasskeyController {
     if (row) await this.s.prisma.passkeyChallenge.deleteMany({ where: { id } });
     if (!row || row.kind !== kind || row.expiresAt < this.s.now()) throw new UnauthorizedException({ error: 'PASSKEY_CHALLENGE_INVALID', message: 'Challenge expired or already used' });
     return { challenge: row.challenge, userId: row.userId };
+  }
+
+  @Get('')
+  async list(@CurrentUser() me: AuthedUser) {
+    const rows = await this.s.prisma.passkey.findMany({ where: { userId: me.id }, orderBy: { createdAt: 'asc' } });
+    return rows.map((p) => ({ id: p.id, createdAt: p.createdAt }));
+  }
+
+  /** The person must keep at least one sign-in method; phone OTP always remains, so a passkey can always be removed. */
+  @Delete(':id') @HttpCode(200)
+  async remove(@CurrentUser() me: AuthedUser, @Param('id') id: string) {
+    const row = await this.s.prisma.passkey.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException({ error: 'NOT_FOUND', message: 'No such passkey' });
+    if (row.userId !== me.id) throw new ForbiddenException({ error: 'FORBIDDEN', message: 'Not your passkey' });
+    await this.s.prisma.passkey.delete({ where: { id } });
+    return { removed: true };
   }
 
   @Post('register/options') @HttpCode(200)
