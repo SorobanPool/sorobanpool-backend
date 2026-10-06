@@ -47,6 +47,8 @@ export const envSchema = z.object({
   RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(300),
   SPONSOR_MIN_XLM: z.coerce.number().positive().default(100),
   KEEPER_EMBEDDED: bool.default(false),
+  OBJECT_STORE: z.enum(['local', 's3']).default('local'),
+  S3_REGION: z.string().default('auto'),
   EVIDENCE_DIR: z.string().default('.evidence'),
   /** Comma separated NGN-per-USD rates used by the static FX provider (testnet/dev). */
   FX_STATIC: z.string().default('1500,1505'),
