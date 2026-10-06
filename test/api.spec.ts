@@ -375,13 +375,15 @@ describe('public product images', () => {
   });
 });
 
+let nextSettledId = BigInt(Date.now()) * 10n;
+
 describe('reports: supplier statement and admin risk overview', () => {
   async function settledPoolFor(supplierWallet: string, offerId: string) {
     const proj = new Projector(new PrismaReadStore(h.db.prisma));
-    const id = BigInt(Date.now()) * 10n + 7n;
+    const id = ++nextSettledId; // monotonic: Date.now() repeats within a millisecond
     const hub = Keypair.random().publicKey();
     const apply = (r: ReturnType<typeof raw>) => proj.apply(decodeEvent(r)!);
-    await h.db.prisma.pendingPool.create({ data: { hubHash: Buffer.alloc(32, Number(id % 200n)).toString('hex'), offerId, organizerAddress: hub, hubAddress: 'Gate', hubContact: '0803', pickupWindow: {}, fillDeadline: new Date(), shareSlug: `st${id}` } });
+    await h.db.prisma.pendingPool.create({ data: { hubHash: id.toString(16).padStart(64, '0'), offerId, organizerAddress: hub, hubAddress: 'Gate', hubContact: '0803', pickupWindow: {}, fillDeadline: new Date(), shareSlug: `st${id}` } });
     const hubBytes = nativeToScVal(Buffer.alloc(32, Number(id % 200n)));
     await apply(raw('group_buy', 'pool_new', u64(id), tup(a(hub), a(supplierWallet), bytes(7), hubBytes), 10));
     await apply(raw('group_buy', 'committed', u64(id), tup(a(Keypair.random().publicKey()), u32(100), i128(1_000_000_000n)), 11));
