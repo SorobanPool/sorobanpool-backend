@@ -7,6 +7,7 @@ import { CatalogController } from './catalog.controller.js';
 import { DevController } from './dev.controller.js';
 import { DisputesController } from './disputes.controller.js';
 import { ApiExceptionFilter, AuthGuard } from './http.js';
+import { RateLimitGuard } from './rate-limit.js';
 import { PoolsController } from './pools.controller.js';
 import { ReportsController } from './reports.controller.js';
 import { SERVICES, type Services } from './services.js';
@@ -26,6 +27,7 @@ export class AppModule {
       ],
       providers: [
         { provide: SERVICES, useValue: services },
+        { provide: APP_GUARD, useClass: RateLimitGuard },
         { provide: APP_GUARD, useClass: AuthGuard },
         { provide: APP_FILTER, useClass: ApiExceptionFilter },
       ],
