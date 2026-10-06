@@ -16,7 +16,7 @@ import { PrismaOtpStore, PrismaSessionStore, PrismaUsageStore } from '../persist
 export const SERVICES = Symbol('SERVICES');
 
 /** The subset of ChainService the API uses; tests substitute a fake. */
-export type ChainPort = Pick<ChainService, 'sponsorAddress' | 'id' | 'view' | 'prepareUser' | 'submitUser' | 'invokeServer' | 'latestLedger' | 'keepAlive' | 'payUsdc'>;
+export type ChainPort = Pick<ChainService, 'sponsorAddress' | 'id' | 'view' | 'prepareUser' | 'submitUser' | 'invokeServer' | 'latestLedger' | 'keepAlive' | 'payUsdc' | 'sponsorBalance'>;
 
 export interface FxProvider {
   quotes(): Promise<FxSourceQuote[]>;
@@ -72,7 +72,7 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
   const now = o.now ?? (() => new Date());
   const sponsor = o.chain ? undefined : Keypair.fromSecret(resolveSecret(env.SPONSOR_SECRET_REF, env.NODE_ENV));
   const chain =
-    o.chain ?? new ChainService({ rpcUrl: env.RPC_URL, passphrase: env.NETWORK_PASSPHRASE, sponsor: sponsor!, deployments });
+    o.chain ?? new ChainService({ rpcUrl: env.RPC_URL, horizonUrl: env.HORIZON_URL, passphrase: env.NETWORK_PASSPHRASE, sponsor: sponsor!, deployments });
   const attestor = o.attestor ?? Keypair.fromSecret(resolveSecret(env.ATTESTOR_SECRET_REF, env.NODE_ENV));
   const offMainnet = env.NODE_ENV !== 'production' && env.STELLAR_NETWORK !== 'mainnet';
   const fx = o.fx ?? new StaticFxProvider(env.FX_STATIC.split(',').map(Number).filter((n) => n > 0));
