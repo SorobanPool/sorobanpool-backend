@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   const env = loadEnv({
     NODE_ENV: 'development', PORT: process.env.PORT ?? '3100', DATABASE_URL: `postgresql://postgres:postgres@127.0.0.1:${dbPort}/postgres`,
     REDIS_URL: 'redis://unused', S3_ENDPOINT: 'http://unused', S3_BUCKET_PUBLIC: 'p', S3_BUCKET_EVIDENCE: 'e', S3_ACCESS_KEY_REF: 'x', S3_SECRET_KEY_REF: 'x',
-    JWT_SECRET: rand(), JWT_REFRESH_SECRET: rand(), OTP_HMAC_SECRET: rand(), ENCRYPTION_KEY_ID: 'dev',
+    JWT_SECRET: rand(), JWT_REFRESH_SECRET: rand(), OTP_HMAC_SECRET: rand(), ENCRYPTION_KEY_ID: `literal:${randomBytes(32).toString('base64')}`,
     RPC_URL: process.env.RPC_URL ?? 'https://soroban-testnet.stellar.org', HORIZON_URL: 'https://horizon-testnet.stellar.org',
     NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015', DEPLOYMENTS_FILE: process.env.DEPLOYMENTS_FILE ?? '../sorobanpool-contracts/deployments/testnet.json',
     SPONSOR_SECRET_REF: 'env:SPONSOR_SECRET', ATTESTOR_SECRET_REF: 'env:SPONSOR_SECRET', WEBAUTHN_RP_ID: 'localhost',

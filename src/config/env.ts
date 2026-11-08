@@ -53,6 +53,8 @@ export const envSchema = z.object({
   /** Comma separated NGN-per-USD rates used by the static FX provider (testnet/dev). */
   FX_STATIC: z.string().default('1500,1505'),
   /** First ledger for a fresh indexer. Unset = the oldest ledger the RPC still retains (see Indexer StartLedger). */
+  /** registry.attest calls allowed per UTC day (brief 7.8 attestor daily cap); alerts at 80%. */
+  ATTESTOR_DAILY_CAP: z.coerce.number().int().positive().default(500),
   INDEXER_START_LEDGER: z.coerce.number().int().positive().optional(),
 });
 
