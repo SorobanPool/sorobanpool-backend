@@ -355,6 +355,11 @@
     "name": "Overflow"
   },
   {
+    "code": 412,
+    "contract": "disputes",
+    "name": "AlreadyDisputed"
+  },
+  {
     "code": 500,
     "contract": "supplier_bond",
     "name": "InvalidAmount"
@@ -393,5 +398,30 @@
     "code": 602,
     "contract": "reputation",
     "name": "NotInitialised"
+  },
+  {
+    "code": 700,
+    "contract": "smart_wallet",
+    "name": "UnknownSigner"
+  },
+  {
+    "code": 701,
+    "contract": "smart_wallet",
+    "name": "SignerExists"
+  },
+  {
+    "code": 702,
+    "contract": "smart_wallet",
+    "name": "LastSigner"
+  },
+  {
+    "code": 703,
+    "contract": "smart_wallet",
+    "name": "TooManySigners"
+  },
+  {
+    "code": 704,
+    "contract": "smart_wallet",
+    "name": "BadCredentialId"
   }
 ]

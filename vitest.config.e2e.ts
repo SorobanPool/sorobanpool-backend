@@ -6,5 +6,8 @@ export default defineConfig({
     root: './',
     include: ['**/*.e2e-spec.ts'],
     testTimeout: 60_000,
+    // Every suite spends the same sponsor account. Its sequence-number lock is per process, so suites in parallel
+    // workers would race on sequence numbers: run files one at a time.
+    fileParallelism: false,
   },
 });

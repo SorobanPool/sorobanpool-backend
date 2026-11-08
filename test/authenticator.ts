@@ -51,6 +51,24 @@ export class SoftAuthenticator {
     };
   }
 
+  /**
+   * What the frontend passkey signer sends to the wallet contract for a Soroban signature payload: the assertion
+   * over base64url(payload) with the signature as 64-byte r || s, S normalised low (the host rejects high S).
+   */
+  assertForWallet(payload: Uint8Array) {
+    this.counter++;
+    const c = Buffer.alloc(4);
+    c.writeUInt32BE(this.counter);
+    const authenticatorData = Buffer.concat([sha256(this.rpId), Buffer.from([0x05]), c]);
+    const clientDataJSON = this.clientData('webauthn.get', b64u(Buffer.from(payload)));
+    const rs = createSign('sha256').update(Buffer.concat([authenticatorData, sha256(clientDataJSON)])).sign({ key: this.priv, dsaEncoding: 'ieee-p1363' });
+    const n = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
+    let sv = BigInt(`0x${rs.subarray(32).toString('hex')}`);
+    if (sv > n >> 1n) sv = n - sv;
+    const signature = Buffer.concat([rs.subarray(0, 32), Buffer.from(sv.toString(16).padStart(64, '0'), 'hex')]);
+    return { credentialId: this.credentialId, authenticatorData, clientDataJSON, signature };
+  }
+
   assert(challenge: string, opts: { origin?: string } = {}) {
     this.counter++;
     const c = Buffer.alloc(4);

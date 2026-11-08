@@ -125,6 +125,8 @@ export const IGNORED_EVENTS: ReadonlySet<string> = new Set([
   'config.params', 'config.paused', 'config.unpaused', 'config.upgraded',
   'registry.user_reg', 'registry.user_att', 'registry.user_rev', 'registry.user_sus', 'registry.user_uns',
   'rep.rep_upd', 'disputes.d_evid',
+  // Emitted by each user's own passkey wallet, which the indexer does not subscribe to (contracts ADR 0006).
+  'wallet.key_add', 'wallet.key_rm',
 ]);
 
 async function commit(ev: DecodedEvent, s: ReadStore): Promise<void> {
