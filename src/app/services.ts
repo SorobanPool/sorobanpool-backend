@@ -17,7 +17,7 @@ import { PrismaOtpStore, PrismaSessionStore, PrismaUsageStore } from '../persist
 export const SERVICES = Symbol('SERVICES');
 
 /** The subset of ChainService the API uses; tests substitute a fake. */
-export type ChainPort = Pick<ChainService, 'sponsorAddress' | 'id' | 'view' | 'prepareUser' | 'submitUser' | 'invokeServer' | 'latestLedger' | 'keepAlive' | 'payUsdc' | 'sponsorBalance'>;
+export type ChainPort = Pick<ChainService, 'sponsorAddress' | 'id' | 'view' | 'prepareUser' | 'submitUser' | 'invokeServer' | 'latestLedger' | 'keepAlive' | 'payUsdc' | 'sponsorBalance' | 'deployWallet'>;
 
 export interface FxProvider {
   quotes(): Promise<FxSourceQuote[]>;

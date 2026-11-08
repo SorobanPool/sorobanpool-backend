@@ -5,11 +5,14 @@ import { transferJson, type TransferView } from '../anchor/anchor.js';
 import { type AuthedUser, CurrentUser, parse } from './http.js';
 import { walletOf } from './prepare.js';
 import { SERVICES, type Services } from './services.js';
+import { isSmartWallet } from '../wallets/smart-wallet.js';
+
+const FAUCET_STROOPS = 100n * 10_000_000n;
 
 /**
- * TESTNET ONLY. Classic Stellar accounts need XLM and a USDC trustline before they can hold the test dollar; smart
- * wallets will not. This stands in for that setup so the app can be tried end to end. It is registered only when
- * NODE_ENV is not production and the network is not mainnet (see AppModule).
+ * TESTNET ONLY: 100 test dollars so the app can be tried end to end. Passkey wallets (contract accounts) hold the
+ * asset with no setup, so they are paid at once. Classic device-key accounts need XLM and a USDC trustline first,
+ * which the device signs. Registered only when NODE_ENV is not production and the network is not mainnet.
  */
 @Controller('dev')
 export class DevController {
@@ -26,6 +29,10 @@ export class DevController {
   @Post('faucet/start') @HttpCode(200)
   async start(@CurrentUser() u: AuthedUser) {
     const wallet = await walletOf(this.s, u.id);
+    if (isSmartWallet(wallet)) {
+      await this.s.chain.payUsdc(wallet, FAUCET_STROOPS);
+      return { added: '100' };
+    }
     let funded = false;
     for (let i = 0; i < 4 && !funded; i++) {
       try {
@@ -64,7 +71,7 @@ export class DevController {
     const sent = await server.sendTransaction(tx);
     const done = await server.pollTransaction(sent.hash, { attempts: 30 });
     if (done.status !== 'SUCCESS') throw new BadRequestException({ error: 'TRUSTLINE_FAILED', message: 'Could not set up the dollar balance' });
-    await this.s.chain.payUsdc(wallet, 100n * 10_000_000n); // through the chain lock: same account as the fee sponsor
+    await this.s.chain.payUsdc(wallet, FAUCET_STROOPS); // through the chain lock: same account as the fee sponsor
     return { added: '100' };
   }
 }

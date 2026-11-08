@@ -11,8 +11,9 @@ import { SERVICES, type Services } from './services.js';
 const CHALLENGE_TTL_MS = 5 * 60_000;
 
 /**
- * Passkeys as a second sign-in method after phone OTP: register while signed in, then sign in without an SMS.
- * This is authentication only; passkey-controlled smart wallets are a separate decision (see ADR on wallets).
+ * Passkeys: registered while signed in (after phone OTP). A registered passkey both signs the user in without an SMS
+ * and, through `POST /wallets/passkey`, controls their smart wallet (contracts ADR 0006). The wallet contract only
+ * accepts user-verified assertions (fingerprint, face or PIN), so registration and sign-in require verification.
  */
 @Controller('auth/passkey')
 export class PasskeyController {
@@ -53,7 +54,9 @@ export class PasskeyController {
     const options = await generateRegistrationOptions({
       rpName: 'SorobanPool', rpID: this.s.env.WEBAUTHN_RP_ID, userName: user.phone, userID: new TextEncoder().encode(user.id), attestationType: 'none',
       excludeCredentials: user.passkeys.map((p) => ({ id: p.credentialId, transports: p.transports as never })),
-      authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
+      authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+      // ES256 first: only P-256 keys can control the on-chain wallet (secp256r1_verify).
+      supportedAlgorithmIDs: [-7],
     });
     return { challengeId: await this.issueChallenge('register', options.challenge, user.id), options };
   }
@@ -65,19 +68,20 @@ export class PasskeyController {
     if (c.userId !== me.id) throw new UnauthorizedException({ error: 'PASSKEY_CHALLENGE_INVALID', message: 'Challenge belongs to another user' });
     const v = await verifyRegistrationResponse({
       response: b.response as unknown as RegistrationResponseJSON, expectedChallenge: c.challenge, expectedOrigin: this.s.env.WEBAUTHN_ORIGIN, expectedRPID: this.s.env.WEBAUTHN_RP_ID,
+      requireUserVerification: true,
     }).catch((e: Error) => { throw new UnauthorizedException({ error: 'PASSKEY_INVALID', message: e.message }); });
     if (!v.verified) throw new UnauthorizedException({ error: 'PASSKEY_INVALID', message: 'Registration not verified' });
     const { credential } = v.registrationInfo;
     await this.s.prisma.passkey.create({
       data: { id: credential.id, userId: me.id, credentialId: credential.id, publicKey: Buffer.from(credential.publicKey), counter: credential.counter, transports: credential.transports ?? [] },
     });
-    return { registered: true };
+    return { registered: true, passkeyId: credential.id };
   }
 
   @Public() @Post('login/options') @HttpCode(200)
   async loginOptions() {
     // Usernameless: the authenticator picks a discoverable credential, so this reveals nothing about any phone number.
-    const options = await generateAuthenticationOptions({ rpID: this.s.env.WEBAUTHN_RP_ID, userVerification: 'preferred' });
+    const options = await generateAuthenticationOptions({ rpID: this.s.env.WEBAUTHN_RP_ID, userVerification: 'required' });
     return { challengeId: await this.issueChallenge('login', options.challenge), options };
   }
 
@@ -90,6 +94,7 @@ export class PasskeyController {
     const v = await verifyAuthenticationResponse({
       response: b.response as unknown as AuthenticationResponseJSON, expectedChallenge: c.challenge, expectedOrigin: this.s.env.WEBAUTHN_ORIGIN, expectedRPID: this.s.env.WEBAUTHN_RP_ID,
       credential: { id: pk.credentialId, publicKey: new Uint8Array(pk.publicKey), counter: pk.counter, transports: pk.transports as never },
+      requireUserVerification: true,
     }).catch((e: Error) => { throw new UnauthorizedException({ error: 'PASSKEY_INVALID', message: e.message }); });
     if (!v.verified) throw new UnauthorizedException({ error: 'PASSKEY_INVALID', message: 'Authentication not verified' });
     await this.s.prisma.passkey.update({ where: { id: pk.id }, data: { counter: v.authenticationInfo.newCounter } });

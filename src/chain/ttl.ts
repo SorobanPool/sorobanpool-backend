@@ -1,26 +1,38 @@
 import { Account, BASE_FEE, Contract, Keypair, Operation, rpc, SorobanDataBuilder, TransactionBuilder, xdr } from '@stellar/stellar-sdk';
-import { CONTRACT_NAMES, type ContractName, type Deployments } from './deployments.js';
+import { CONTRACT_NAMES, type Deployments } from './deployments.js';
 
 /** ~5s ledgers. Extend when less than 20 days remain; extend by 60 days. */
 export const EXTEND_BELOW_LEDGERS = 345_600;
 export const EXTEND_TO_LEDGERS = 1_036_800;
 
+/** Most entries one ExtendFootprintTtl transaction may touch (well under the network's footprint limit). */
+export const MAX_TTL_KEYS = 40;
+
 export interface TtlKey {
-  contract: ContractName;
+  /** A core contract name, `smart_wallet` (the shared wallet code) or a wallet's address. */
+  contract: string;
   kind: 'instance' | 'code';
   key: xdr.LedgerKey;
 }
 
-/** Instance and code ledger keys of every contract. The code key comes from the deployment's wasm hash. */
-export function instanceAndCodeKeys(d: Deployments): TtlKey[] {
-  return CONTRACT_NAMES.flatMap((name) => [
+const codeKey = (wasmHash: string) => xdr.LedgerKey.contractCode(new xdr.LedgerKeyContractCode({ hash: Buffer.from(wasmHash, 'hex') }));
+
+/**
+ * Instance and code ledger keys of every core contract, the shared passkey-wallet code, and the instances of the
+ * given user wallets (callers pass a bounded batch; see MAX_TTL_KEYS). Code keys come from the deployment's hashes.
+ */
+export function instanceAndCodeKeys(d: Deployments, wallets: string[] = []): TtlKey[] {
+  const core = CONTRACT_NAMES.flatMap((name) => [
     { contract: name, kind: 'instance' as const, key: new Contract(d.contracts[name].id).getFootprint() },
-    { contract: name, kind: 'code' as const, key: xdr.LedgerKey.contractCode(new xdr.LedgerKeyContractCode({ hash: Buffer.from(d.contracts[name].wasmHash, 'hex') })) },
+    { contract: name, kind: 'code' as const, key: codeKey(d.contracts[name].wasmHash) },
   ]);
+  const walletCode = d.smartWallet ? [{ contract: 'smart_wallet', kind: 'code' as const, key: codeKey(d.smartWallet.wasmHash) }] : [];
+  const instances = wallets.map((w) => ({ contract: w, kind: 'instance' as const, key: new Contract(w).getFootprint() }));
+  return [...core, ...walletCode, ...instances].slice(0, MAX_TTL_KEYS);
 }
 
 export interface TtlStatus {
-  contract: ContractName;
+  contract: string;
   kind: 'instance' | 'code';
   remaining: number | null; // null = entry not found (archived or wrong hash): page someone
 }

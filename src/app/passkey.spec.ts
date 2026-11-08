@@ -19,7 +19,7 @@ describe('passkey sign-in', () => {
   it('registers while signed in, then signs in without an SMS and keeps roles', async () => {
     const me = await h.login('+2348031000001');
     const a = new SoftAuthenticator(rp, origin);
-    expect((await register(me.token, a)).body).toEqual({ registered: true });
+    expect((await register(me.token, a)).body).toEqual({ registered: true, passkeyId: a.credentialId.toString('base64url') });
 
     const o = await loginOptions();
     const r = await h.http().post('/v1/auth/passkey/login/verify').send({ challengeId: o.body.challengeId, response: a.assert(o.body.options.challenge) });

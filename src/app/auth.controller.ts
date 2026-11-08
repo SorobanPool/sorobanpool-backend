@@ -1,5 +1,6 @@
 import { Body, Controller, Get, HttpCode, Inject, Patch, Post, Put } from '@nestjs/common';
 import { Keypair, StrKey } from '@stellar/stellar-sdk';
+import { credentialIdBytes, p256PublicKeyFromCose, WalletKeyError } from '../wallets/smart-wallet.js';
 import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { AuthError } from '../auth/otp.service.js';
@@ -100,13 +101,14 @@ export class UsersController {
   }
 
   /**
-   * Step 2: binds a Stellar account to the user after proof of possession (ed25519 signature over the
-   * challenge). Smart (passkey) wallets are not supported yet: that needs the wallet-implementation ADR.
+   * Step 2: binds a classic Stellar account (device key) after proof of possession (ed25519 signature over the
+   * challenge). This is the testnet fallback for browsers without passkeys; passkey wallets use `POST /wallets/passkey`
+   * (a contract address cannot sign this challenge, so it is refused here).
    */
   @Post('wallets') @HttpCode(200)
   async bind(@CurrentUser() u: AuthedUser, @Body() body: unknown) {
     const { address, signature } = parse(z.object({ address: z.string(), signature: z.string() }), body);
-    if (StrKey.isValidContract(address)) throw new AuthError('SMART_WALLET_UNSUPPORTED', 'Smart wallets are not supported yet');
+    if (StrKey.isValidContract(address)) throw new AuthError('USE_PASSKEY_WALLET', 'Passkey wallets are created with POST /wallets/passkey');
     if (!StrKey.isValidEd25519PublicKey(address)) throw new AuthError('INVALID_ADDRESS', 'Invalid Stellar address');
     const ch = challenges.get(u.id);
     if (!ch || ch.expires < this.s.now().getTime()) throw new AuthError('CHALLENGE_EXPIRED', 'Request a new wallet challenge');
@@ -118,6 +120,36 @@ export class UsersController {
     if (taken && taken.id !== u.id) throw new AuthError('WALLET_TAKEN', 'This wallet belongs to another account');
     await this.s.prisma.user.update({ where: { id: u.id }, data: { walletAddress: address } });
     return { walletAddress: address };
+  }
+
+  /**
+   * Creates the user's passkey wallet (contracts ADR 0006): a smart_wallet contract controlled by a passkey the user
+   * registered here, so the public key was verified by our WebAuthn registration (attestation, origin, RP ID) and
+   * is theirs. The sponsor deploys it and pays; the user has no seed phrase, no XLM and nothing to back up.
+   * Idempotent: a retry returns the same address.
+   */
+  @Post('wallets/passkey') @HttpCode(200)
+  async createPasskeyWallet(@CurrentUser() u: AuthedUser, @Body() body: unknown) {
+    const { passkeyId } = parse(z.object({ passkeyId: z.string().min(1) }), body);
+    const user = await this.s.prisma.user.findUniqueOrThrow({ where: { id: u.id } });
+    const pk = await this.s.prisma.passkey.findUnique({ where: { id: passkeyId } });
+    if (!pk || pk.userId !== u.id) throw new AuthError('PASSKEY_NOT_FOUND', 'Register this passkey first');
+    let publicKey: Buffer;
+    try {
+      publicKey = p256PublicKeyFromCose(new Uint8Array(pk.publicKey));
+    } catch (e) {
+      if (e instanceof WalletKeyError) throw new AuthError(e.code, e.message);
+      throw e;
+    }
+    if (user.walletAddress && !StrKey.isValidContract(user.walletAddress)) {
+      throw new AuthError('WALLET_EXISTS', 'This account already uses a device wallet');
+    }
+    const { address, created } = await this.s.chain.deployWallet(credentialIdBytes(pk.credentialId), publicKey);
+    if (user.walletAddress && user.walletAddress !== address) throw new AuthError('WALLET_EXISTS', 'This account already has a passkey wallet');
+    const taken = await this.s.prisma.user.findUnique({ where: { walletAddress: address } });
+    if (taken && taken.id !== u.id) throw new AuthError('WALLET_TAKEN', 'This wallet belongs to another account');
+    await this.s.prisma.user.update({ where: { id: u.id }, data: { walletAddress: address } });
+    return { walletAddress: address, created, credentialId: pk.credentialId };
   }
 
   @Post('suppliers/apply') @HttpCode(200)

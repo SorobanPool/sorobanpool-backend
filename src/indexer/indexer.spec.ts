@@ -169,6 +169,17 @@ describe('Indexer', () => {
     warn.mockRestore();
   });
 
+  it('starts at the deploy ledger when it is still retained, and near the oldest ledger when it is not', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const retained = harness({ latest: 1000, oldest: 300, start: { from: 600 } });
+    await retained.idx.tick();
+    expect(retained.cursor()).toBe(649); // 600..649
+    const expired = harness({ latest: 1000, oldest: 300, start: { from: 100 } });
+    await expired.idx.tick();
+    expect(expired.cursor()).toBe(409); // 360..409
+    warn.mockRestore();
+  });
+
   it('an explicit start below retention fails instead of silently skipping history', async () => {
     const h = harness({ latest: 400, oldest: 300, start: 100 });
     await expect(h.idx.tick()).rejects.toThrow(/retention/);
