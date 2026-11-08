@@ -3,7 +3,7 @@ import { nativeToScVal, xdr, Address, Keypair } from '@stellar/stellar-sdk';
 import { decodeEvent, type RawEvent } from './decode.js';
 import { HANDLERS, IGNORED_EVENTS, Projector } from './projector.js';
 import { MemoryReadStore } from './read-model.js';
-import { Indexer, type CursorStore, type EventSink, type RpcPort } from './indexer.service.js';
+import { Indexer, type CursorStore, type EventSink, type RpcPort, type StartLedger } from './indexer.service.js';
 
 const events: { contract: string; event: string }[] = JSON.parse(
   readFileSync(new URL('../chain/artifacts/events.json', import.meta.url), 'utf8'),
@@ -119,7 +119,7 @@ describe('Projector', () => {
 });
 
 describe('Indexer', () => {
-  function harness(opts: { latest: number; oldest?: number; events?: RawEvent[]; cursor?: number }) {
+  function harness(opts: { latest: number; oldest?: number; events?: RawEvent[]; cursor?: number; start?: StartLedger }) {
     let cursor = opts.cursor;
     const saved: RawEvent[] = [];
     const rpc: RpcPort = {
@@ -130,7 +130,7 @@ describe('Indexer', () => {
     const cur: CursorStore = { get: async () => cursor, set: async (l) => void (cursor = l) };
     const sink: EventSink = { saveRaw: async (r) => void saved.push(r) };
     const store = new MemoryReadStore();
-    const idx = new Indexer(rpc, cur, sink, new Projector(store), ['Cx'], 1, 50);
+    const idx = new Indexer(rpc, cur, sink, new Projector(store), ['Cx'], opts.start ?? 1, 50);
     return { idx, saved, store, cursor: () => cursor };
   }
 
@@ -156,6 +156,23 @@ describe('Indexer', () => {
     const behind = harness({ latest: 500, cursor: 100, oldest: 300 });
     await expect(behind.idx.tick()).rejects.toThrow(/retention/);
     expect(behind.idx.shouldAlert).toBe(true);
+  });
+
+  it('a fresh install with no explicit start begins just inside the retention window', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const ev = raw('group_buy', 'pool_new', u64(1n), tup(a(organizer()), a(addr()), nativeToScVal(bytes32(1)), nativeToScVal(bytes32(2))), 370);
+    const h = harness({ latest: 500, oldest: 300, start: 'oldest', events: [ev] });
+    expect(await h.idx.tick()).toEqual({ processed: 1 }); // ledgers 360..409: the margin absorbs the window sliding
+    expect(h.cursor()).toBe(409);
+    expect(h.idx.metrics.behindRetention).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/\(360, oldest 300\)/));
+    warn.mockRestore();
+  });
+
+  it('an explicit start below retention fails instead of silently skipping history', async () => {
+    const h = harness({ latest: 400, oldest: 300, start: 100 });
+    await expect(h.idx.tick()).rejects.toThrow(/retention/);
+    expect(h.cursor()).toBeUndefined();
   });
 
   function organizer() { return addr(); }

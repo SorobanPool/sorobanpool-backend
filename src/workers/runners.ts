@@ -70,7 +70,7 @@ export function startIndexer(s: Services, server: rpc.Server, intervalMs = 5000)
   const ids = CONTRACT_NAMES.map((n) => s.deployments.contracts[n].id);
   const producer = new NotificationProducer(s.prisma, async () => combineQuotes(await s.fx.quotes(), s.now()).rate, s.now);
   const indexer = new Indexer(
-    rpcPort(server), new PrismaCursorStore(s.prisma), new PrismaEventSink(s.prisma), new Projector(new PrismaReadStore(s.prisma)), ids, s.env.INDEXER_START_LEDGER, 1000,
+    rpcPort(server), new PrismaCursorStore(s.prisma), new PrismaEventSink(s.prisma), new Projector(new PrismaReadStore(s.prisma)), ids, s.env.INDEXER_START_LEDGER ?? 'oldest', 1000,
     (ev) => producer.onEvent(ev),
   );
   const runner = every('indexer', intervalMs, async () => {
