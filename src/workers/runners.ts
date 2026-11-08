@@ -11,7 +11,7 @@ import type { ErrorReporter } from '../observability/errors.js';
 import type { Services } from '../app/services.js';
 import { combineQuotes } from '../fx/fx.js';
 import { dispatchDue, NotificationProducer, queueDeadlineReminders } from '../notifications/dispatcher.js';
-import { checkSponsor, expireOffers, MismatchTracker, reconcilePools } from './maintenance.js';
+import { checkSponsor, expireOffers, MismatchTracker, reconcilePools, refreshFx } from './maintenance.js';
 
 /**
  * Soroban RPC adapter for the indexer. The Indexer treats `endLedger` as inclusive, but the RPC's `endLedger`
@@ -175,6 +175,14 @@ export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
     for (const m of bad) console.error(`[reconcile] ALERT pool ${m.poolId} ${m.field}: db=${m.db} chain=${m.chain}`);
     const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);
     if (h.low) console.error(`[maintenance] ALERT sponsor balance ${Number(h.balanceStroops) / 1e7} XLM is below ${s.env.SPONSOR_MIN_XLM}`);
+  }, s.reporter);
+}
+
+/** Every minute: `fx-refresh` (brief 7.7). Alerts while sources diverge, because offer publishing is blocked then. */
+export function startFxRefresh(s: Services, intervalMs = 60_000): Runner {
+  return every('fx-refresh', intervalMs, async () => {
+    const r = await refreshFx(s.prisma, s.fx, s.now());
+    if (r.blocked) console.error(`[fx-refresh] ALERT offer publishing blocked: ${r.reason}`);
   }, s.reporter);
 }
 

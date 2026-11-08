@@ -31,7 +31,7 @@ Docs: `docs/api.md`, `docs/decisions/`, `docs/runbooks/`.
 
 ## What runs where
 - **API** (`ROLE=api`): REST under `/v1` (see `docs/api.md`, `docs/openapi.json`, `GET /v1/openapi.json`), rate limited per client IP (`RATE_LIMIT_PER_MIN`), Prometheus metrics at `GET /v1/metrics` (`METRICS_TOKEN`; required in production), live pool updates over SSE at `GET /v1/pools/:id/stream`.
-- **Workers** (`ROLE=worker` or `KEEPER_EMBEDDED`): keeper (close/fail/allocate/settle/push-refunds/dispute-timeout), `ttl-extend`, maintenance (offer expiry, sponsor-balance alert, 24h deadline reminders, read-model reconcile against the chain), notifier (SMS queue with quiet hours and retries).
+- **Workers** (`ROLE=worker` or `KEEPER_EMBEDDED`): keeper (close/fail/allocate/settle/push-refunds/dispute-timeout), `ttl-extend` (core contracts and passkey wallets), `fx-refresh` (two independent NGN/USD sources; publishing is blocked while they diverge by more than 2%), maintenance (offer expiry, sponsor-balance alert, 24h deadline reminders, read-model reconcile against the chain), notifier (SMS queue with quiet hours and retries).
 - **Indexer** (`ROLE=indexer` or `INDEXER_EMBEDDED`): events to read model, atomic and idempotent; newly applied events enqueue member SMS.
 - **Sign-in and wallets**: phone OTP, plus passkeys (WebAuthn). A passkey also controls the user's smart wallet, deployed by the sponsor (`POST /wallets/passkey`; contracts ADR 0006).
 - **Verification**: KYC (`/kyc/*`) and supplier KYB checks through a provider port (sandbox today); results sealed with AES-256-GCM; only a salted hash goes on-chain, via an attestor with a daily cap.
@@ -40,6 +40,6 @@ Docs: `docs/api.md`, `docs/decisions/`, `docs/runbooks/`.
 Operations: `docs/runbooks/`.
 
 ## Not done yet
-- **Needs a decision or an outside party**: real naira anchor and withdrawals (ADR 0005; only a mock exists), a live FX source (static rates only; so no `fx-refresh` job), real SMS/WhatsApp providers (a console sender and the `SmsSender` port exist), a real KYC/KYB provider (the `VerificationProvider` port and a sandbox exist; ADR 0006), the external audit and mainnet pilot.
+- **Needs a decision or an outside party**: real naira anchor and withdrawals (ADR 0005; only a mock exists), a paid FX feed with an SLA (two free public feeds are wired: `FX_SOURCES=er-api,coingecko`), real SMS/WhatsApp providers (a console sender and the `SmsSender` port exist), a real KYC/KYB provider (the `VerificationProvider` port and a sandbox exist; ADR 0006), the external audit and mainnet pilot.
 - **Engineering left**: BullMQ scheduling (ADR 0002; needs Redis, an in-process interval scheduler runs today, so run one worker replica), OpenTelemetry, WebSocket transport (SSE is used instead), a pager integration (alerts are log lines), multi-replica rate limiting (the limiter is per process).
 - **Not exercised against real providers**: the S3 adapter (tested against a local S3-style endpoint), Sentry delivery (tested against a local endpoint), the Horizon sponsor-balance read.

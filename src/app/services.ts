@@ -9,6 +9,7 @@ import { OtpService, type SmsSender } from '../auth/otp.service.js';
 import { TokenService } from '../auth/token.service.js';
 import { SponsorshipPolicy } from '../relayer/allowlist.js';
 import type { FxSourceQuote } from '../fx/fx.js';
+import { LiveFxProvider } from '../fx/sources.js';
 import { MockAnchor, type AnchorProvider } from '../anchor/anchor.js';
 import { createReporter, type ErrorReporter } from '../observability/errors.js';
 import { LocalObjectStore, S3ObjectStore, type ObjectStore } from '../evidence/store.js';
@@ -88,7 +89,9 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
     o.chain ?? new ChainService({ rpcUrl: env.RPC_URL, horizonUrl: env.HORIZON_URL, passphrase: env.NETWORK_PASSPHRASE, sponsor: sponsor!, deployments });
   const attestor = o.attestor ?? Keypair.fromSecret(resolveSecret(env.ATTESTOR_SECRET_REF, env.NODE_ENV));
   const offMainnet = env.NODE_ENV !== 'production' && env.STELLAR_NETWORK !== 'mainnet';
-  const fx = o.fx ?? new StaticFxProvider(env.FX_STATIC.split(',').map(Number).filter((n) => n > 0));
+  const fxNames = env.FX_SOURCES.split(',').map((x) => x.trim()).filter(Boolean);
+  if (!o.fx && !fxNames.length && env.NODE_ENV === 'production') throw new Error('FX_SOURCES is required in production: static rates would price real money');
+  const fx = o.fx ?? (fxNames.length ? new LiveFxProvider(fxNames) : new StaticFxProvider(env.FX_STATIC.split(',').map(Number).filter((n) => n > 0)));
   const sms = o.sms ?? new ConsoleSmsSender(env.OTP_DEV_ECHO);
   const services: Services = {
     sms,

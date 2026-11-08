@@ -1,4 +1,5 @@
 import type { PrismaClient } from '../generated/prisma/client.js';
+import { combineQuotes, FxDivergenceError, type FxSourceQuote } from '../fx/fx.js';
 
 /** Live offers past `validUntil` stop being offered; pools already created from them are unaffected. */
 export async function expireOffers(prisma: Pick<PrismaClient, 'offer'>, now: Date): Promise<number> {
@@ -69,5 +70,31 @@ export class MismatchTracker {
     const out = current.filter((m) => this.last.has(`${m.poolId}:${m.field}`));
     this.last = keys;
     return out;
+  }
+}
+
+export interface FxRefreshResult {
+  rate: number | null;
+  divergence: number | null;
+  /** True when sources disagree by more than 2% (or fewer than two answered): offer publishing is blocked meanwhile. */
+  blocked: boolean;
+  reason?: string;
+}
+
+/**
+ * `fx-refresh` (brief 7.7, every minute): records the combined NGN/USD rate from all sources, or why it could not be
+ * combined. Publishing re-quotes on its own and refuses on divergence; this job gives the history and the alert.
+ */
+export async function refreshFx(
+  prisma: Pick<PrismaClient, 'fxQuote'>, fx: { quotes(): Promise<FxSourceQuote[]> }, now: Date,
+): Promise<FxRefreshResult> {
+  const sources = await fx.quotes();
+  try {
+    const q = combineQuotes(sources, now);
+    await prisma.fxQuote.create({ data: { pair: 'NGN/USD', rate: q.rate.toFixed(6), sources: { quotes: q.sources, divergence: q.divergence } as never } });
+    return { rate: q.rate, divergence: q.divergence, blocked: false };
+  } catch (e) {
+    const divergence = e instanceof FxDivergenceError ? e.divergence : null;
+    return { rate: null, divergence, blocked: true, reason: (e as Error).message };
   }
 }
