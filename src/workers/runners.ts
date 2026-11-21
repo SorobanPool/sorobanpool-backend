@@ -11,7 +11,7 @@ import type { ErrorReporter } from '../observability/errors.js';
 import type { Services } from '../app/services.js';
 import { combineQuotes } from '../fx/fx.js';
 import { dispatchDue, NotificationProducer, queueDeadlineReminders } from '../notifications/dispatcher.js';
-import { checkSponsor, expireOffers, MismatchTracker, purgeIdempotencyKeys, reconcilePools, refreshFx } from './maintenance.js';
+import { checkSponsor, expireOffers, expireStaleAnchorTransfers, MismatchTracker, purgeIdempotencyKeys, reconcilePools, refreshFx } from './maintenance.js';
 
 /**
  * Soroban RPC adapter for the indexer. The Indexer treats `endLedger` as inclusive, but the RPC's `endLedger`
@@ -175,7 +175,7 @@ export function startTtlKeeper(s: Services, intervalMs = 3_600_000): Runner {
   }, s.reporter);
 }
 
-/** Every 5 minutes: expire stale offers and page when the fee sponsor runs low. */
+/** Every 5 minutes: expire stale offers, anchor transfers, and page when the fee sponsor runs low. */
 export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
   const tracker = new MismatchTracker();
   return every('maintenance', intervalMs, async () => {
@@ -185,6 +185,8 @@ export function startMaintenance(s: Services, intervalMs = 300_000): Runner {
     if (reminded) console.log(`[maintenance] queued ${reminded} deadline reminder(s)`);
     const purged = await purgeIdempotencyKeys(s.prisma, s.now(), s.env.IDEMPOTENCY_RETENTION_DAYS);
     if (purged) console.log(`[maintenance] deleted ${purged} expired idempotency key(s)`);
+    const expiredTransfers = await expireStaleAnchorTransfers(s.prisma, s.now(), s.env.ANCHOR_TRANSFER_EXPIRY_MINUTES);
+    if (expiredTransfers.expired) console.log(`[maintenance] expired ${expiredTransfers.expired} anchor transfer(s)`);
     const bad = tracker.persistent(await reconcilePools(s.prisma, s.chain as never, A.poolOnly));
     for (const m of bad) console.error(`[reconcile] ALERT pool ${m.poolId} ${m.field}: db=${m.db} chain=${m.chain}`);
     const h = await checkSponsor(s.chain, s.env.SPONSOR_MIN_XLM);

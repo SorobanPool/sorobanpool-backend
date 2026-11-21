@@ -18,6 +18,8 @@ export interface DepositStart {
   /** Indicative only: the rate at the moment the bank transfer is confirmed is final. */
   estimatedUsdcStroops: bigint;
   ngnPerUsd: number;
+  /** Unix timestamp in seconds when this quote expires. */
+  expiresAtSeconds: number;
 }
 
 export interface TransferView {
@@ -42,11 +44,24 @@ export interface UsdcPayout {
 
 export const MIN_DEPOSIT_NGN = 1_000n;
 export const MAX_DEPOSIT_NGN = 5_000_000n;
+export const QUOTE_EXPIRY_SECONDS = 60;
 
 export class AnchorError extends Error {
-  constructor(public readonly code: 'AMOUNT_OUT_OF_RANGE' | 'NOT_FOUND' | 'BAD_STATE' | 'FX_UNAVAILABLE', message: string) {
+  constructor(public readonly code: 'AMOUNT_OUT_OF_RANGE' | 'NOT_FOUND' | 'BAD_STATE' | 'FX_UNAVAILABLE' | 'QUOTE_EXPIRED', message: string) {
     super(message);
   }
+}
+
+export function validateQuoteExpiry(expiresAtSeconds: number, now: Date): void {
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  if (nowSeconds > expiresAtSeconds) {
+    throw new AnchorError('QUOTE_EXPIRED', `Quote expired at ${new Date(expiresAtSeconds * 1000).toISOString()}`);
+  }
+}
+
+export function getSecondsUntilExpiry(expiresAtSeconds: number, now: Date): number {
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  return Math.max(0, expiresAtSeconds - nowSeconds);
 }
 
 /** Fake bank: remembers deposits and "confirms" them on request. For development and tests only. */
@@ -77,6 +92,7 @@ export class MockAnchor implements AnchorProvider {
     return {
       transferId: row.id, anchor: this.name, amountNgn, estimatedUsdcStroops: estimated, ngnPerUsd: rate,
       instructions: { bank: 'Mock Bank (testing only)', accountName: 'SorobanPool Test Collections', accountNumber: '0000000000', reference: row.id },
+      expiresAtSeconds: Math.floor(this.now().getTime() / 1000) + QUOTE_EXPIRY_SECONDS,
     };
   }
 
