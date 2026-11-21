@@ -1,4 +1,4 @@
-import { chainState, checkSponsor, expireOffers, MismatchTracker, purgeIdempotencyKeys, reconcilePools, toStroopsString } from './maintenance.js';
+import { chainState, checkSponsor, expireOffers, expireStaleAnchorTransfers, MismatchTracker, purgeIdempotencyKeys, reconcilePools, toStroopsString } from './maintenance.js';
 import { startHarness, type Harness } from '../../test/harness.js';
 
 describe('checkSponsor', () => {
@@ -96,5 +96,104 @@ describe('purgeIdempotencyKeys (#173)', () => {
     }
     expect(await purgeIdempotencyKeys(h.s.prisma, now, 7, 2, 2)).toBe(4);
     expect(await purgeIdempotencyKeys(h.s.prisma, now, 7, 2, 2)).toBe(2);
+  });
+});
+
+describe('expireStaleAnchorTransfers', () => {
+  let h: Harness;
+  beforeAll(async () => { h = await startHarness(); });
+  afterAll(async () => { await h.close(); });
+
+  it('marks pending anchor transfers older than the limit as EXPIRED', async () => {
+    const now = new Date('2026-03-10T12:00:00Z');
+    const expiryMinutes = 1440; // 24 hours
+    const user = await h.s.prisma.user.create({ data: { phone: '+2348013333333' } });
+
+    // Create transfers at different ages
+    const oldTransfer = await h.s.prisma.anchorTransfer.create({
+      data: {
+        id: 'old-1',
+        userId: user.id,
+        kind: 'DEPOSIT',
+        anchor: 'mock',
+        anchorTxId: '',
+        status: 'PENDING',
+        createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+      },
+    });
+    const freshTransfer = await h.s.prisma.anchorTransfer.create({
+      data: {
+        id: 'fresh-1',
+        userId: user.id,
+        kind: 'DEPOSIT',
+        anchor: 'mock',
+        anchorTxId: '',
+        status: 'PENDING',
+        createdAt: new Date(now.getTime() - 12 * 60 * 60 * 1000), // 12 hours ago
+      },
+    });
+    const completedTransfer = await h.s.prisma.anchorTransfer.create({
+      data: {
+        id: 'completed-1',
+        userId: user.id,
+        kind: 'DEPOSIT',
+        anchor: 'mock',
+        anchorTxId: 'tx-1',
+        status: 'COMPLETED',
+        createdAt: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days ago but COMPLETED
+      },
+    });
+
+    const result = await expireStaleAnchorTransfers(h.s.prisma, now, expiryMinutes);
+
+    expect(result.expired).toBe(1);
+    expect(result.flaggedForReview).toBe(0);
+
+    // Verify status changes
+    const oldStatus = (await h.s.prisma.anchorTransfer.findUnique({ where: { id: 'old-1' } }))?.status;
+    const freshStatus = (await h.s.prisma.anchorTransfer.findUnique({ where: { id: 'fresh-1' } }))?.status;
+    const completedStatus = (await h.s.prisma.anchorTransfer.findUnique({ where: { id: 'completed-1' } }))?.status;
+
+    expect(oldStatus).toBe('EXPIRED');
+    expect(freshStatus).toBe('PENDING');
+    expect(completedStatus).toBe('COMPLETED');
+  });
+
+  it('expires only pending transfers not others', async () => {
+    const now = new Date('2026-03-11T12:00:00Z');
+    const expiryMinutes = 60;
+    const user = await h.s.prisma.user.create({ data: { phone: '+2348014444444' } });
+
+    // Create old transfer with different statuses
+    const failedTransfer = await h.s.prisma.anchorTransfer.create({
+      data: {
+        id: 'failed-old',
+        userId: user.id,
+        kind: 'DEPOSIT',
+        anchor: 'mock',
+        anchorTxId: '',
+        status: 'FAILED',
+        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      },
+    });
+    const expiredTransfer = await h.s.prisma.anchorTransfer.create({
+      data: {
+        id: 'expired-old',
+        userId: user.id,
+        kind: 'DEPOSIT',
+        anchor: 'mock',
+        anchorTxId: '',
+        status: 'EXPIRED',
+        createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      },
+    });
+
+    const result = await expireStaleAnchorTransfers(h.s.prisma, now, expiryMinutes);
+
+    expect(result.expired).toBe(0);
+    const failedStatus = (await h.s.prisma.anchorTransfer.findUnique({ where: { id: 'failed-old' } }))?.status;
+    const expiredStatus = (await h.s.prisma.anchorTransfer.findUnique({ where: { id: 'expired-old' } }))?.status;
+    expect(failedStatus).toBe('FAILED');
+    expect(expiredStatus).toBe('EXPIRED');
   });
 });

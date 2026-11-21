@@ -66,6 +66,8 @@ export const envSchema = z.object({
   IDEMPOTENCY_RETENTION_DAYS: z.coerce.number().positive().default(7),
   /** Minutes before a pending two-person admin action expires. */
   ADMIN_ACTION_EXPIRY_MINUTES: z.coerce.number().int().min(1).max(10_080).default(30),
+  /** Minutes before a pending anchor transfer is marked as expired. */
+  ANCHOR_TRANSFER_EXPIRY_MINUTES: z.coerce.number().int().min(1).default(1440), // 24 hours default
 });
 
 export type Env = z.infer<typeof envSchema>;

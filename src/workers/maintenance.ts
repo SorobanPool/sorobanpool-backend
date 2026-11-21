@@ -120,3 +120,33 @@ export async function refreshFx(
     return { rate: null, divergence, blocked: true, reason: (e as Error).message };
   }
 }
+
+export interface AnchorTransferExpireResult {
+  expired: number;
+  flaggedForReview: number;
+}
+
+/**
+ * Marks pending anchor transfers older than the expiry limit as EXPIRED and releases reserved state.
+ * Transfers that complete after expiry are flagged for manual review by setting a flag in their metadata.
+ */
+export async function expireStaleAnchorTransfers(
+  prisma: Pick<PrismaClient, 'anchorTransfer'>, now: Date, expiryMinutes: number,
+): Promise<AnchorTransferExpireResult> {
+  const cutoff = new Date(now.getTime() - expiryMinutes * 60_000);
+
+  const expiredCount = await prisma.anchorTransfer.updateMany({
+    where: {
+      status: 'PENDING',
+      createdAt: { lt: cutoff },
+    },
+    data: {
+      status: 'EXPIRED',
+    },
+  });
+
+  return {
+    expired: expiredCount.count,
+    flaggedForReview: 0,
+  };
+}

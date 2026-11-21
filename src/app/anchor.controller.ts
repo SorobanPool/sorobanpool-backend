@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, HttpException, Inject, NotFoundException, Param, Post } from '@nestjs/common';
 import { z } from 'zod';
-import { AnchorError, transferJson } from '../anchor/anchor.js';
+import { AnchorError, getSecondsUntilExpiry, transferJson } from '../anchor/anchor.js';
 import { formatUsdc } from '../common/money.js';
 import { type AuthedUser, CurrentUser, parse } from './http.js';
 import { SERVICES, type Services } from './services.js';
@@ -23,6 +23,8 @@ export class AnchorController {
       return {
         transferId: d.transferId, anchor: d.anchor, instructions: d.instructions, amountNgn: d.amountNgn.toString(), ngnPerUsd: d.ngnPerUsd,
         estimatedUsdc: formatUsdc(d.estimatedUsdcStroops),
+        expiresAt: new Date(d.expiresAtSeconds * 1000).toISOString(),
+        expiresInSeconds: getSecondsUntilExpiry(d.expiresAtSeconds, this.s.now()),
         note: 'Indicative. The rate when your bank transfer is confirmed is final.',
       };
     } catch (e) {
