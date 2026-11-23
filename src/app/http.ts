@@ -71,12 +71,20 @@ export function contractErrorCode(message: string): number | undefined {
 export class ApiExceptionFilter implements ExceptionFilter {
   constructor(@Inject(SERVICES) private readonly s: Services) {}
   catch(e: unknown, host: ArgumentsHost): void {
-    const res = host.switchToHttp().getResponse<{ status(n: number): { json(b: unknown): void } }>();
+    const res = host.switchToHttp().getResponse<{ status(n: number): { json(b: unknown): void; header(name: string, value: string): void } }>();
     const requestId = currentRequestId();
-    const send = (status: number, body: Record<string, unknown>) => res.status(status).json(body);
+    const send = (status: number, body: Record<string, unknown>, headers?: Record<string, string>) => {
+      const statusObj = res.status(status);
+      if (headers) {
+        Object.entries(headers).forEach(([name, value]) => statusObj.header(name, value));
+      }
+      return statusObj.json(body);
+    };
     if (e instanceof AuthError) {
-      const status = e.code === 'OTP_RATE_LIMITED' ? 429 : e.code === 'INVALID_PHONE' ? 400 : 401;
-      return send(status, { error: e.code, message: e.message, requestId });
+      const status = e.code === 'OTP_RATE_LIMITED' || e.code === 'OTP_COOLDOWN' ? 429 : e.code === 'INVALID_PHONE' ? 400 : 401;
+      const body = { error: e.code, message: e.message, requestId, ...(e.retryAfterSecs !== undefined ? { retryAfterSecs: e.retryAfterSecs } : {}) };
+      const headers = e.retryAfterSecs !== undefined ? { 'Retry-After': String(e.retryAfterSecs) } : undefined;
+      return send(status, body, headers);
     }
     if (e instanceof AnchorError) return send(e.code === 'NOT_FOUND' ? 404 : e.code === 'FX_UNAVAILABLE' ? 503 : 400, { error: e.code, message: e.message, requestId });
     if (e instanceof SponsorshipError) return send(e.code === 'CAP_REACHED' ? 429 : 403, { error: e.code, message: e.message, requestId });

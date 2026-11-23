@@ -5,6 +5,9 @@ export const OTP_TTL_MS = 5 * 60_000;
 export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_MAX_REQUESTS = 3;
 export const OTP_REQUEST_WINDOW_MS = 15 * 60_000;
+export const OTP_RESEND_COOLDOWN_MS = 30_000;
+export const OTP_HOURLY_LIMIT = 5;
+export const OTP_HOURLY_WINDOW_MS = 60 * 60_000;
 
 export interface OtpRecord {
   id: string;
@@ -21,6 +24,7 @@ export interface OtpStore {
   latestOpen(phone: string): Promise<OtpRecord | null>;
   countSince(phone: string, since: Date): Promise<number>;
   update(id: string, patch: Partial<Pick<OtpRecord, 'attempts' | 'consumed'>>): Promise<void>;
+  lastRequestTime(phone: string): Promise<Date | null>;
 }
 
 export interface SmsSender {
@@ -28,7 +32,11 @@ export interface SmsSender {
 }
 
 export class AuthError extends Error {
-  constructor(public readonly code: string, message: string) {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly retryAfterSecs?: number,
+  ) {
     super(message);
   }
 }
@@ -40,6 +48,9 @@ export class OtpService {
     private readonly secret: string,
     private readonly now: () => Date = () => new Date(),
     private readonly random: () => number = () => randomInt(0, 1_000_000),
+    private readonly resendCooldownMs: number = OTP_RESEND_COOLDOWN_MS,
+    private readonly hourlyLimit: number = OTP_HOURLY_LIMIT,
+    private readonly maxAttempts: number = OTP_MAX_ATTEMPTS,
   ) {}
 
   private hash(phone: string, code: string): string {
@@ -50,8 +61,33 @@ export class OtpService {
     const phone = normalizeNgPhone(rawPhone);
     if (!phone) throw new AuthError('INVALID_PHONE', 'Enter a valid Nigerian mobile number');
     const now = this.now();
+    
+    // Check resend cooldown (per-phone, short-term)
+    const lastRequest = await this.store.lastRequestTime(phone);
+    if (lastRequest) {
+      const msSinceLastRequest = now.getTime() - lastRequest.getTime();
+      if (msSinceLastRequest < this.resendCooldownMs) {
+        const retryAfterSecs = Math.ceil((this.resendCooldownMs - msSinceLastRequest) / 1000);
+        throw new AuthError('OTP_COOLDOWN', 'Wait before requesting another code', retryAfterSecs);
+      }
+    }
+    
+    // Check hourly limit (per-phone, long-term)
+    const hourAgo = new Date(now.getTime() - OTP_HOURLY_WINDOW_MS);
+    const recentHourly = await this.store.countSince(phone, hourAgo);
+    if (recentHourly >= this.hourlyLimit) {
+      // Calculate retry after based on the oldest request in the current window
+      const retryAfterSecs = Math.ceil(OTP_HOURLY_WINDOW_MS / 1000);
+      throw new AuthError('OTP_RATE_LIMITED', 'Too many codes requested. Try again later', retryAfterSecs);
+    }
+    
+    // Check the original 15-minute window limit (kept for backwards compatibility)
     const recent = await this.store.countSince(phone, new Date(now.getTime() - OTP_REQUEST_WINDOW_MS));
-    if (recent >= OTP_MAX_REQUESTS) throw new AuthError('OTP_RATE_LIMITED', 'Too many codes requested. Try again later');
+    if (recent >= OTP_MAX_REQUESTS) {
+      const retryAfterSecs = Math.ceil(OTP_REQUEST_WINDOW_MS / 1000);
+      throw new AuthError('OTP_RATE_LIMITED', 'Too many codes requested. Try again later', retryAfterSecs);
+    }
+    
     const code = this.random().toString().padStart(6, '0');
     await this.store.insert({
       phone,
@@ -71,7 +107,8 @@ export class OtpService {
     if (!phone) throw new AuthError('INVALID_PHONE', 'Enter a valid Nigerian mobile number');
     const rec = await this.store.latestOpen(phone);
     if (!rec || rec.consumed || rec.expiresAt <= this.now()) throw new AuthError('OTP_EXPIRED', 'Code expired. Request a new one');
-    if (rec.attempts >= OTP_MAX_ATTEMPTS) throw new AuthError('OTP_LOCKED', 'Too many wrong attempts. Request a new code');
+    // After max attempts, return the same generic error as a wrong code (don't reveal the challenge is locked)
+    if (rec.attempts >= this.maxAttempts) throw new AuthError('OTP_WRONG', 'Wrong code');
     const a = Buffer.from(this.hash(phone, code));
     const b = Buffer.from(rec.codeHash);
     const ok = a.length === b.length && timingSafeEqual(a, b);

@@ -52,7 +52,8 @@ variable must be set for every role even if that role does not read it.
 | `INDEXER_EMBEDDED` | `false` | no | api | Run the indexer inside the api process (single-process dev setups). |
 | `METRICS_TOKEN` | optional | **secret** | api | Bearer token for /v1/metrics; at least 16 characters. Required to scrape in production. |
 | `RATE_LIMIT_PER_MIN` | `300` | no | api | Requests per minute per client. |
-| `SPONSOR_MIN_XLM` | `100` | no | worker | The maintenance job alerts when the sponsor balance falls below this. |
+| `SPONSOR_MIN_XLM` | `100` | no | worker | Fallback alert floor: used when there are no sponsored transactions to measure a spend rate from. |
+| `SPONSOR_MIN_RUNWAY_DAYS` | `7` | no | worker | The maintenance job alerts when the sponsor balance covers fewer days than this at the recent average spend. |
 | `KEEPER_EMBEDDED` | `false` | no | api | Run the keeper and maintenance jobs inside the api process (single-process dev setups). |
 | `OBJECT_STORE` | `local` | no | all | local (EVIDENCE_DIR) or s3 (ADR 0008). |
 | `S3_REGION` | `auto` | no | all | S3 region; auto suits R2 and MinIO. |
@@ -82,3 +83,6 @@ variable must be set for every role even if that role does not read it.
 | `CHAIN_EVENT_RETENTION_DAYS` | `180` | no | worker | Raw ChainEvents for final pools older than this are pruned; events for non-final pools are always kept (#90). |
 | `ADMIN_ACTION_EXPIRY_MINUTES` | `30` | no | api | Minutes before a pending sensitive admin action expires (1–10,080; default 30). |
 | `ANCHOR_TRANSFER_EXPIRY_MINUTES` | `1440` | no | worker | Minutes before a pending anchor transfer is marked as expired (default 1,440). |
+| `OTP_RESEND_COOLDOWN_SECONDS` | `30` | no | api | Minimum seconds between OTP requests for the same phone number (default 30). |
+| `OTP_HOURLY_LIMIT` | `5` | no | api | Maximum OTP requests per phone per hour (default 5). |
+| `OTP_MAX_ATTEMPTS` | `5` | no | api | Maximum wrong OTP verification attempts before the challenge is invalidated (default 5). |

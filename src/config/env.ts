@@ -116,6 +116,12 @@ export const envSchema = z.object({
   ADMIN_ACTION_EXPIRY_MINUTES: z.coerce.number().int().min(1).max(10_080).default(30),
   /** Minutes before a pending anchor transfer is marked as expired. */
   ANCHOR_TRANSFER_EXPIRY_MINUTES: z.coerce.number().int().min(1).default(1440), // 24 hours default
+  /** Minimum seconds between OTP requests for the same phone number. */
+  OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().nonnegative().default(30),
+  /** Maximum OTP requests allowed per phone per hour. */
+  OTP_HOURLY_LIMIT: z.coerce.number().int().positive().default(5),
+  /** Maximum wrong OTP attempts before invalidating the challenge. */
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 });
 
 export type Env = z.infer<typeof envSchema>;

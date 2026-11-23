@@ -135,6 +135,31 @@ describe('auth and sponsorship on Postgres', () => {
     expect(await t.prisma.session.count({ where: { userId: user.id, revokedAt: null } })).toBe(0);
   });
 
+  it('enforces configurable max attempts with Prisma store', async () => {
+    const sent: string[] = [];
+    const otp = new OtpService(new PrismaOtpStore(t.prisma), { send: async (_p, text) => void sent.push(text) }, 's'.repeat(32), () => new Date(), () => 123456, undefined, undefined, 3);
+    
+    // Request OTP
+    await otp.request('08051234567');
+    
+    // Make 3 wrong attempts (the custom limit)
+    for (let i = 0; i < 3; i++) {
+      await expect(otp.verify('08051234567', '000000')).rejects.toMatchObject({ code: 'OTP_WRONG' });
+    }
+    
+    // Verify attempt counter was persisted correctly
+    const challenge = await t.prisma.otpChallenge.findFirst({ where: { phone: '+2348051234567' }, orderBy: { createdAt: 'desc' } });
+    expect(challenge?.attempts).toBe(3);
+    
+    // 4th attempt should fail even with correct code
+    await expect(otp.verify('08051234567', '123456')).rejects.toMatchObject({ code: 'OTP_WRONG' });
+    
+    // Challenge should still not be consumed (just locked)
+    const afterLock = await t.prisma.otpChallenge.findFirst({ where: { phone: '+2348051234567' }, orderBy: { createdAt: 'desc' } });
+    expect(afterLock?.consumed).toBe(false);
+    expect(afterLock?.attempts).toBe(3);
+  });
+
   it('counts sponsored transactions atomically per user per day', async () => {
     const policy = new SponsorshipPolicy(new Map([['CGROUP', 'group_buy']]), new PrismaUsageStore(t.prisma), 3, () => new Date('2026-10-05T10:00:00Z'));
     await Promise.all([1, 2, 3].map(() => policy.authorize('u1', 'CGROUP', 'commit')));

@@ -39,7 +39,11 @@ Every `prepare` returns `{txXdr, authEntries[], validUntilLedger, contract, fn}`
 
 Every request accepts a well-formed `X-Request-Id` (1–64 ASCII letters, digits, dot, underscore or hyphen) or receives a generated UUID. The value is returned in `X-Request-Id`, included in error bodies and request/error logs, and forwarded to outbound FX and Horizon HTTP providers.
 
-Rate limit: `RATE_LIMIT_PER_MIN` requests per client IP per minute (default 300), then `429 {error:"RATE_LIMITED", retryAfterSecs}`; health is exempt. Behind a proxy set Express `trust proxy` so the real client IP is used.
+Rate limit: `RATE_LIMIT_PER_MIN` requests per client IP per minute (default 300), then `429 {error:"RATE_LIMITED", retryAfterSecs}`; health is exempt.
+
+OTP resend cooldown: `POST /auth/otp/request` enforces a per-phone cooldown (default 30 seconds, configurable via `OTP_RESEND_COOLDOWN_SECONDS`) and an hourly limit (default 5 requests per hour, configurable via `OTP_HOURLY_LIMIT`). Requests inside the cooldown or exceeding the hourly limit return `429 {error:"OTP_COOLDOWN"|"OTP_RATE_LIMITED", message, retryAfterSecs}` with a `Retry-After` header (seconds). The cooldown never reveals whether the phone is already registered. The existing 15-minute window limit (3 requests per 15 minutes) also remains in place.
+
+OTP verification attempts: `POST /auth/otp/verify` invalidates the challenge after a configurable number of wrong attempts (default 5, `OTP_MAX_ATTEMPTS`). After the limit is reached, verification returns the same generic `OTP_WRONG` error whether the code is correct or not, preventing brute force attacks without revealing that the challenge is locked. Users must request a new code. Behind a proxy set Express `trust proxy` so the real client IP is used.
 
 Body limits: JSON bodies over `JSON_BODY_LIMIT` (default `100kb`) and raw uploads (`image/*`, `video/mp4`, `application/pdf`) over `UPLOAD_BODY_LIMIT` (default `16mb`) are refused with `413 {error:"PAYLOAD_TOO_LARGE"}` before any route runs.
 
