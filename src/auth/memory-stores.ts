@@ -19,6 +19,10 @@ export class MemoryOtpStore implements OtpStore {
   async update(id: string, patch: Partial<Pick<OtpRecord, 'attempts' | 'consumed'>>): Promise<void> {
     Object.assign(this.rows.find((r) => r.id === id)!, patch);
   }
+  async lastRequestTime(phone: string): Promise<Date | null> {
+    const records = this.rows.filter((r) => r.phone === phone).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return records[0]?.createdAt ?? null;
+  }
 }
 
 export class MemorySessionStore implements SessionStore {

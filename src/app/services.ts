@@ -111,7 +111,7 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
         buckets: { public: env.S3_BUCKET_PUBLIC, evidence: env.S3_BUCKET_EVIDENCE },
       })
       : new LocalObjectStore(env.EVIDENCE_DIR)),
-    otp: new OtpService(new PrismaOtpStore(prisma), sms, env.OTP_HMAC_SECRET, now, o.otpRandom),
+    otp: new OtpService(new PrismaOtpStore(prisma), sms, env.OTP_HMAC_SECRET, now, o.otpRandom, env.OTP_RESEND_COOLDOWN_SECONDS * 1000, env.OTP_HOURLY_LIMIT, env.OTP_MAX_ATTEMPTS),
     tokens: new TokenService(env.JWT_SECRET, new PrismaSessionStore(prisma), now),
     policy: new SponsorshipPolicy(contractNameMap(deployments), new PrismaUsageStore(prisma), undefined, now),
     previewCache: new PoolPreviewCache(env.POOL_PREVIEW_CACHE_TTL_SECONDS * 1000, env.POOL_PREVIEW_CACHE_MAX_ENTRIES),

@@ -43,6 +43,10 @@ export class PrismaOtpStore implements OtpStore {
   async update(id: string, patch: Partial<Pick<OtpRecord, 'attempts' | 'consumed'>>): Promise<void> {
     await this.db.otpChallenge.update({ where: { id }, data: patch });
   }
+  async lastRequestTime(phone: string): Promise<Date | null> {
+    const record = await this.db.otpChallenge.findFirst({ where: { phone }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } });
+    return record?.createdAt ?? null;
+  }
 }
 
 export class PrismaSessionStore implements SessionStore {

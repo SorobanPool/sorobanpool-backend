@@ -1,6 +1,6 @@
 /** Normalises Nigerian mobile numbers to E.164 (+234XXXXXXXXXX). Returns null if it is not a valid NG mobile. */
 export function normalizeNgPhone(input: string): string | null {
-  const digits = input.replace(/[\s\-().]/g, '');
+  const digits = input.trim().replace(/[\s\-().]/g, '');
   let national: string;
   if (/^\+234\d{10}$/.test(digits)) national = digits.slice(4);
   else if (/^234\d{10}$/.test(digits)) national = digits.slice(3);
