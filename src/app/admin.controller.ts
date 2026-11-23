@@ -213,6 +213,37 @@ export class AdminController {
     return this.setSuspension(admin, id, reason);
   }
 
+  @Roles('ADMIN') @Get('admin/offers')
+  async adminOffers(@Query() query: Record<string, string>) {
+    const q = parse(z.object({
+      status: z.enum(['DRAFT', 'LIVE', 'EXPIRED', 'TAKEN_DOWN']).optional(),
+      priceOutlier: z.enum(['true', 'false']).optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(50),
+    }), query);
+    
+    const where: Prisma.OfferWhereInput = {};
+    if (q.status) where.status = q.status;
+    if (q.priceOutlier === 'true') where.priceOutlierFlag = true;
+    
+    const offers = await this.s.prisma.offer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: q.limit,
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        supplierId: true,
+        status: true,
+        priceOutlierFlag: true,
+        createdAt: true,
+        validUntil: true,
+      },
+    });
+    
+    return offers;
+  }
+
   @Roles('ADMIN') @Post('admin/offers/:id/takedown') @HttpCode(200)
   async takedown(@CurrentUser() admin: AuthedUser, @Param('id') id: string) {
     await this.s.prisma.offer.update({ where: { id }, data: { status: 'TAKEN_DOWN' } });

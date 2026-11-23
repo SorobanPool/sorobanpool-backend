@@ -131,30 +131,32 @@ model VerificationRecord {
 }
 
 model Offer {
-  id            String      @id @default(cuid())
-  supplierId    String
-  title         String
-  brand         String?
-  description   String
-  unitLabel     String
-  category      String
-  perishable    Boolean     @default(false)
-  images        String[]
-  tiersNgn      Json
-  tiersUsdc     Json
-  fxQuoteId     String
-  moq           Int
-  maxUnits      Int
-  maxPerMember  Int
-  leadTimeHours Int
-  deliveryAreas Json
-  validUntil    DateTime
-  offerHash     String
-  status        OfferStatus @default(DRAFT)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id               String      @id @default(cuid())
+  supplierId       String
+  title            String
+  brand            String?
+  description      String
+  unitLabel        String
+  category         String
+  perishable       Boolean     @default(false)
+  images           String[]
+  tiersNgn         Json
+  tiersUsdc        Json
+  fxQuoteId        String
+  moq              Int
+  maxUnits         Int
+  maxPerMember     Int
+  leadTimeHours    Int
+  deliveryAreas    Json
+  validUntil       DateTime
+  offerHash        String
+  status           OfferStatus @default(DRAFT)
+  priceOutlierFlag Boolean     @default(false)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
   @@index([status, category])
+  @@index([priceOutlierFlag, status])
 }
 
 /// Read model rebuilt from ChainEvent plus off-chain extras.

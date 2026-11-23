@@ -1,13 +1,15 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Header, HttpCode, Inject, NotFoundException, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Header, HttpCode, HttpStatus, Inject, NotFoundException, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import { z } from 'zod';
 import { type Prisma } from '../generated/prisma/client.js';
 import { offerHash } from '../catalog/offer.js';
-import { validateOffer } from '../catalog/offer-validation.js';
+import { validateOffer, computeCategoryMedians, isPriceOutlier } from '../catalog/offer-validation.js';
 import { combineQuotes, convertTiers, FxDivergenceError } from '../fx/fx.js';
 import type { Tier } from '../pools/pricing.js';
 import { type AuthedUser, CurrentUser, parse, Public, Roles } from './http.js';
 import { CACHE_CONTROL } from './http-setup.js';
 import { SERVICES, type Services } from './services.js';
+import type { Request, Response } from 'express';
+import { createHash } from 'crypto';
 
 const tierNgn = z.object({ minUnits: z.number().int().positive(), priceNgn: z.string().regex(/^\d+$/, 'whole naira, digits only') });
 const offerBody = z.object({
@@ -24,11 +26,31 @@ export const tiersUsdcToJson = (t: Tier[]) => t.map((x) => ({ minUnits: x.minUni
 export const tiersUsdcFromJson = (j: unknown): Tier[] =>
   (j as { minUnits: number; unitPrice: string }[]).map((t) => ({ minUnits: t.minUnits, unitPrice: BigInt(t.unitPrice) }));
 
-function check(b: OfferBody, now: Date) {
+function check(b: OfferBody, now: Date, options?: { isDraft?: boolean }) {
   const tiers: Tier[] = b.tiersNgn.map((t) => ({ minUnits: t.minUnits, unitPrice: BigInt(t.priceNgn) }));
-  const r = validateOffer({ ...b, tiers }, now);
+  const r = validateOffer({ ...b, tiers }, now, undefined, options);
   if (r.errors.length) throw new BadRequestException({ error: 'OFFER_INVALID', issues: r.errors });
   return r.flags;
+}
+
+/**
+ * Generate an ETag from offer data for conditional GET support.
+ * Issue #68: ETag generation for caching.
+ */
+function generateETag(data: unknown): string {
+  const hash = createHash('sha256').update(JSON.stringify(data)).digest('hex');
+  return `"${hash.substring(0, 16)}"`;
+}
+
+/**
+ * Check if the request's If-None-Match header matches the ETag.
+ * Issue #68: Conditional GET support.
+ */
+function checkETag(req: Request, etag: string): boolean {
+  const ifNoneMatch = req.headers['if-none-match'];
+  if (!ifNoneMatch) return false;
+  const tags = ifNoneMatch.split(',').map((t) => t.trim());
+  return tags.includes(etag) || tags.includes('*');
 }
 
 @Controller()
@@ -51,10 +73,11 @@ export class CatalogController {
   @Roles('SUPPLIER') @Post('offers')
   async create(@CurrentUser() u: AuthedUser, @Body() body: unknown) {
     const b = parse(offerBody, body);
-    const flags = check(b, this.s.now());
+    // Issue #70: Drafts may have fewer than MIN_PHOTOS images
+    const flags = check(b, this.s.now(), { isDraft: true });
     const { branded: _branded, ...rest } = b;
     const offer = await this.s.prisma.offer.create({
-      data: { ...rest, supplierId: u.id, tiersNgn: b.tiersNgn, tiersUsdc: [], fxQuoteId: '', offerHash: '', deliveryAreas: b.deliveryAreas, status: 'DRAFT' },
+      data: { ...rest, supplierId: u.id, tiersNgn: b.tiersNgn, tiersUsdc: [], fxQuoteId: '', offerHash: '', deliveryAreas: b.deliveryAreas, status: 'DRAFT', priceOutlierFlag: false },
     });
     return { id: offer.id, status: offer.status, flags };
   }
@@ -64,7 +87,8 @@ export class CatalogController {
     const o = await this.mine(id, u.id);
     if (o.status !== 'DRAFT') throw new BadRequestException({ error: 'NOT_DRAFT', message: 'Only drafts can be edited; publish a new offer instead' });
     const b = parse(offerBody, body);
-    check(b, this.s.now());
+    // Issue #70: Drafts may have fewer than MIN_PHOTOS images
+    check(b, this.s.now(), { isDraft: true });
     const { branded: _branded, ...rest } = b;
     await this.s.prisma.offer.update({ where: { id }, data: { ...rest, tiersNgn: b.tiersNgn, deliveryAreas: b.deliveryAreas } });
     return { id };
@@ -95,10 +119,65 @@ export class CatalogController {
   async publish(@CurrentUser() u: AuthedUser, @Param('id') id: string) {
     const o = await this.mine(id, u.id);
     if (o.status !== 'DRAFT') throw new BadRequestException({ error: 'NOT_DRAFT', message: 'Already published' });
+    
+    // Issue #69: Re-check validUntil against current time on publish
     if (o.validUntil <= this.s.now()) throw new BadRequestException({ error: 'EXPIRED', message: 'validUntil is in the past' });
+    
+    // Issue #70: Validate that we have at least MIN_PHOTOS images and they belong to the supplier
+    if (o.images.length < 2) {
+      throw new BadRequestException({ error: 'OFFER_INVALID', issues: ['at least 2 photos are required'] });
+    }
+    
+    // Issue #70: Check that all image keys exist and are owned by the supplier
+    for (const imageKey of o.images) {
+      const evidence = await this.s.prisma.evidence.findFirst({
+        where: { 
+          id: imageKey, 
+          ownerId: o.supplierId, 
+          kind: 'PRODUCT',
+          NOT: { sha256: '' },
+        },
+      });
+      if (!evidence) {
+        throw new BadRequestException({ 
+          error: 'INVALID_IMAGE', 
+          message: `Image "${imageKey}" does not exist or is not owned by you` 
+        });
+      }
+    }
+    
+    // Issue #65: Compute category median and check for price outliers
+    const liveOffers = await this.s.prisma.offer.findMany({
+      where: { status: 'LIVE', category: o.category, validUntil: { gt: this.s.now() } },
+      select: { category: true, tiersNgn: true },
+    });
+    
+    const categoryTiers = liveOffers.map((offer) => ({
+      category: offer.category,
+      tiers: (offer.tiersNgn as { minUnits: number; priceNgn: string }[]).map((t) => ({
+        unitPrice: BigInt(t.priceNgn),
+      })),
+    }));
+    
+    const medians = computeCategoryMedians(categoryTiers);
+    const categoryMedian = medians.get(o.category);
+    const firstTierPrice = (o.tiersNgn as { minUnits: number; priceNgn: string }[])[0];
+    const priceOutlierFlag = firstTierPrice 
+      ? isPriceOutlier(BigInt(firstTierPrice.priceNgn), categoryMedian)
+      : false;
+    
     const p = await this.price(o, o.validUntil);
-    await this.s.prisma.offer.update({ where: { id }, data: { tiersUsdc: p.tiersUsdc, fxQuoteId: p.fxQuoteId, offerHash: p.offerHash, status: 'LIVE' } });
-    return { id, status: 'LIVE', offerHash: p.offerHash, ngnPerUsd: p.rate, tiersUsdc: p.tiersUsdc };
+    await this.s.prisma.offer.update({ 
+      where: { id }, 
+      data: { 
+        tiersUsdc: p.tiersUsdc, 
+        fxQuoteId: p.fxQuoteId, 
+        offerHash: p.offerHash, 
+        status: 'LIVE',
+        priceOutlierFlag,
+      } 
+    });
+    return { id, status: 'LIVE', offerHash: p.offerHash, ngnPerUsd: p.rate, tiersUsdc: p.tiersUsdc, priceOutlierFlag };
   }
 
   /** Re-quotes FX (and extends validity, max 14 days) for a live or expired offer. */
@@ -107,6 +186,7 @@ export class CatalogController {
     const o = await this.mine(id, u.id);
     if (o.status === 'TAKEN_DOWN' || o.status === 'DRAFT') throw new BadRequestException({ error: 'BAD_STATE', message: 'Publish the draft or contact support' });
     const { validUntil } = parse(z.object({ validUntil: z.coerce.date() }), body);
+    // Issue #69: Enforce MAX_VALIDITY_DAYS on refresh
     const days = (validUntil.getTime() - this.s.now().getTime()) / 86_400_000;
     if (days <= 0 || days > 14) throw new BadRequestException({ error: 'BAD_VALIDITY', message: 'validUntil must be within 14 days' });
     const p = await this.price(o, validUntil);
@@ -127,7 +207,7 @@ export class CatalogController {
   }
 
   @Public() @Get('offers') @Header('Cache-Control', CACHE_CONTROL.catalog)
-  async list(@Query() q: Record<string, string | undefined>) {
+  async list(@Query() q: Record<string, string | undefined>, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const now = this.s.now();
     const where: Prisma.OfferWhereInput = { status: 'LIVE', validUntil: { gt: now } };
     if (q.category) where.category = q.category;
@@ -137,14 +217,36 @@ export class CatalogController {
       const a = areas as { state: string; lga?: string }[];
       return (!q.state || a.some((x) => x.state.toLowerCase() === q.state!.toLowerCase())) && (!q.lga || a.some((x) => !x.lga || x.lga.toLowerCase() === q.lga!.toLowerCase()));
     };
-    return rows.filter((r) => inArea(r.deliveryAreas)).map(publicOffer);
+    const result = rows.filter((r) => inArea(r.deliveryAreas)).map(publicOffer);
+    
+    // Issue #68: ETag support for conditional GET
+    const etag = generateETag(result);
+    res.setHeader('ETag', etag);
+    
+    if (checkETag(req, etag)) {
+      res.status(HttpStatus.NOT_MODIFIED);
+      return;
+    }
+    
+    return result;
   }
 
   @Public() @Get('offers/:id') @Header('Cache-Control', CACHE_CONTROL.catalog)
-  async one(@Param('id') id: string) {
+  async one(@Param('id') id: string, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const o = await this.s.prisma.offer.findUnique({ where: { id } });
     if (!o || o.status === 'DRAFT') throw new NotFoundException('offer not found');
-    return publicOffer(o);
+    const result = publicOffer(o);
+    
+    // Issue #68: ETag support for conditional GET
+    const etag = generateETag(result);
+    res.setHeader('ETag', etag);
+    
+    if (checkETag(req, etag)) {
+      res.status(HttpStatus.NOT_MODIFIED);
+      return;
+    }
+    
+    return result;
   }
 }
 

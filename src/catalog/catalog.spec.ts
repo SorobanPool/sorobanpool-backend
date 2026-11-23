@@ -1,6 +1,6 @@
 import { canonicalJson } from '../common/canonical-json.js';
 import { offerHash, type OfferTerms } from './offer.js';
-import { validateOffer, findBannedKeyword, type OfferDraft } from './offer-validation.js';
+import { validateOffer, findBannedKeyword, type OfferDraft, computeCategoryMedians, isPriceOutlier } from './offer-validation.js';
 import { combineQuotes, convertTiers, FxDivergenceError, ngnToStroops } from '../fx/fx.js';
 import { loadEnv } from '../config/env.js';
 
@@ -47,6 +47,25 @@ describe('offer validation', () => {
   it('accepts a good offer', () => {
     expect(validateOffer(draft(), now)).toEqual({ errors: [], flags: [] });
   });
+  
+  // Issue #70: Test draft with fewer than 2 images
+  it('allows drafts with fewer than 2 images but blocks publish', () => {
+    const r1 = validateOffer(draft({ images: ['one.webp'] }), now, undefined, { isDraft: true });
+    expect(r1.errors).toEqual([]);
+    
+    const r2 = validateOffer(draft({ images: ['one.webp'] }), now, undefined, { isDraft: false });
+    expect(r2.errors.join('|')).toMatch(/at least 2 photos are required/);
+  });
+  
+  // Issue #70: Test with 0 and 2 images
+  it('requires at least 2 photos on publish', () => {
+    const r0 = validateOffer(draft({ images: [] }), now);
+    expect(r0.errors.join('|')).toMatch(/at least 2 photos are required/);
+    
+    const r2 = validateOffer(draft({ images: ['a.webp', 'b.webp'] }), now);
+    expect(r2.errors).toEqual([]);
+  });
+  
   it('rejects bad tiers, photos, category, brand and validity', () => {
     const r = validateOffer(
       draft({
@@ -67,6 +86,18 @@ describe('offer validation', () => {
     expect(r.errors.join('|')).toMatch(/brand/);
     expect(r.errors.join('|')).toMatch(/at most 14 days/);
   });
+  
+  // Issue #69: Test 14-day boundary
+  it('enforces 14-day maximum validity', () => {
+    const exactly14Days = new Date(now.getTime() + 14 * 86_400_000);
+    const r14 = validateOffer(draft({ validUntil: exactly14Days }), now);
+    expect(r14.errors).toEqual([]);
+    
+    const over14Days = new Date(now.getTime() + 14 * 86_400_000 + 1000);
+    const rOver = validateOffer(draft({ validUntil: over14Days }), now);
+    expect(rOver.errors.join('|')).toMatch(/at most 14 days/);
+  });
+  
   it('blocks regulated goods by keyword without matching inside other words', () => {
     expect(findBannedKeyword('Premium vodka 75cl')).toBe('vodka');
     expect(findBannedKeyword('Cooking oil')).toBeUndefined();
@@ -74,10 +105,60 @@ describe('offer validation', () => {
     expect(findBannedKeyword('Air guns and spirits')).toBe('spirit');
     expect(validateOffer(draft({ title: 'Imported wine' }), now).errors.join()).toMatch(/banned keyword/);
   });
+  
   it('flags price outliers for review but does not block them', () => {
     const r = validateOffer(draft(), now, 1000n);
     expect(r.errors).toEqual([]);
     expect(r.flags).toHaveLength(1);
+  });
+});
+
+// Issue #65: Test median computation
+describe('category median computation', () => {
+  it('computes median for odd count', () => {
+    const offers = [
+      { category: 'rice', tiers: [{ unitPrice: 100n }] },
+      { category: 'rice', tiers: [{ unitPrice: 200n }] },
+      { category: 'rice', tiers: [{ unitPrice: 300n }] },
+    ];
+    const medians = computeCategoryMedians(offers);
+    expect(medians.get('rice')).toBe(200n);
+  });
+  
+  it('computes median for even count', () => {
+    const offers = [
+      { category: 'rice', tiers: [{ unitPrice: 100n }] },
+      { category: 'rice', tiers: [{ unitPrice: 200n }] },
+      { category: 'rice', tiers: [{ unitPrice: 300n }] },
+      { category: 'rice', tiers: [{ unitPrice: 400n }] },
+    ];
+    const medians = computeCategoryMedians(offers);
+    expect(medians.get('rice')).toBe(250n);
+  });
+  
+  it('handles new category with no data', () => {
+    const offers: Array<{ category: string; tiers: Array<{ unitPrice: bigint }> }> = [];
+    const medians = computeCategoryMedians(offers);
+    expect(medians.get('rice')).toBeUndefined();
+  });
+  
+  it('handles multiple categories', () => {
+    const offers = [
+      { category: 'rice', tiers: [{ unitPrice: 100n }] },
+      { category: 'rice', tiers: [{ unitPrice: 300n }] },
+      { category: 'beans', tiers: [{ unitPrice: 50n }] },
+      { category: 'beans', tiers: [{ unitPrice: 150n }] },
+    ];
+    const medians = computeCategoryMedians(offers);
+    expect(medians.get('rice')).toBe(200n);
+    expect(medians.get('beans')).toBe(100n);
+  });
+  
+  it('identifies extreme outliers', () => {
+    expect(isPriceOutlier(1000n, 100n)).toBe(true); // 10x higher
+    expect(isPriceOutlier(10n, 100n)).toBe(true);  // 10x lower
+    expect(isPriceOutlier(250n, 100n)).toBe(false); // 2.5x is within 3x
+    expect(isPriceOutlier(100n, undefined)).toBe(false); // no median available
   });
 });
 
