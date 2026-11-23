@@ -91,6 +91,24 @@ describe('TokenService', () => {
     await expect(svc.refresh(second.refreshToken, async () => [])).rejects.toMatchObject({ code: 'REFRESH_REUSED' });
   });
 
+  it('invalidates access and refresh tokens for all sessions without affecting another user', async () => {
+    const { svc, sessions, clock } = setup();
+    const first = await svc.issue('u1', ['TRADER']);
+    const second = await svc.issue('u1', ['TRADER']);
+    const other = await svc.issue('u2', ['TRADER']);
+
+    expect(await svc.verifyAccess(first.accessToken)).toMatchObject({ sub: 'u1' });
+    expect(await svc.verifyAccess(second.accessToken)).toMatchObject({ sub: 'u1' });
+    await sessions.revokeAllForUser('u1', clock.t);
+
+    await expect(svc.verifyAccess(first.accessToken)).rejects.toMatchObject({ code: 'TOKEN_INVALID' });
+    await expect(svc.verifyAccess(second.accessToken)).rejects.toMatchObject({ code: 'TOKEN_INVALID' });
+    await expect(svc.refresh(first.refreshToken, async () => [])).rejects.toMatchObject({ code: 'REFRESH_REUSED' });
+    await expect(svc.refresh(second.refreshToken, async () => [])).rejects.toMatchObject({ code: 'REFRESH_REUSED' });
+    await expect(svc.verifyAccess(other.accessToken)).resolves.toMatchObject({ sub: 'u2' });
+    expect(sessions.rows.find((r) => r.userId === 'u2')?.revokedAt).toBeNull();
+  });
+
   it('rejects expired refresh tokens and supports logout', async () => {
     const { svc, clock } = setup();
     const p = await svc.issue('u1', []);

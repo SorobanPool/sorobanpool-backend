@@ -16,6 +16,7 @@ export interface SessionRecord {
 export interface SessionStore {
   insert(r: Omit<SessionRecord, 'id' | 'revokedAt'>): Promise<SessionRecord>;
   findByHash(hash: string): Promise<SessionRecord | null>;
+  findById(id: string): Promise<SessionRecord | null>;
   revoke(id: string, at: Date): Promise<void>;
   revokeAllForUser(userId: string, at: Date): Promise<void>;
 }
@@ -29,6 +30,7 @@ export interface TokenPair {
 export interface AccessClaims {
   sub: string;
   roles: string[];
+  sid: string;
 }
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -45,18 +47,25 @@ export class TokenService {
 
   async issue(userId: string, roles: string[]): Promise<TokenPair> {
     const refreshToken = randomBytes(32).toString('base64url');
-    await this.sessions.insert({
+    const session = await this.sessions.insert({
       userId,
       refreshHash: sha(refreshToken),
       expiresAt: new Date(this.now().getTime() + REFRESH_TTL_MS),
     });
-    const accessToken = await this.jwt.signAsync({ sub: userId, roles });
+    // Access tokens are bound to their session so logout-all immediately invalidates them too.
+    const accessToken = await this.jwt.signAsync({ sub: userId, roles, sid: session.id });
     return { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS };
   }
 
   async verifyAccess(token: string): Promise<AccessClaims> {
     try {
-      return await this.jwt.verifyAsync<AccessClaims>(token);
+      const claims = await this.jwt.verifyAsync<AccessClaims>(token);
+      if (!claims.sid) throw new Error('Missing session identifier');
+      const session = await this.sessions.findById(claims.sid);
+      if (!session || session.userId !== claims.sub || session.revokedAt || session.expiresAt <= this.now()) {
+        throw new Error('Session revoked or expired');
+      }
+      return claims;
     } catch {
       throw new AuthError('TOKEN_INVALID', 'Invalid or expired token');
     }

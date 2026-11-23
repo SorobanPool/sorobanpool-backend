@@ -1390,6 +1390,30 @@
         }
       }
     },
+    "/v1/auth/logout-all": {
+      "post": {
+        "operationId": "AuthController.logoutAll",
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "429": {
+            "description": "Rate limited"
+          }
+        }
+      }
+    },
     "/v1/auth/otp/request": {
       "post": {
         "operationId": "AuthController.request",

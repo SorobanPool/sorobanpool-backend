@@ -32,6 +32,9 @@ export class MemorySessionStore implements SessionStore {
   async findByHash(hash: string): Promise<SessionRecord | null> {
     return this.rows.find((r) => r.refreshHash === hash) ?? null;
   }
+  async findById(id: string): Promise<SessionRecord | null> {
+    return this.rows.find((r) => r.id === id) ?? null;
+  }
   async revoke(id: string, at: Date): Promise<void> {
     this.rows.find((r) => r.id === id)!.revokedAt = at;
   }

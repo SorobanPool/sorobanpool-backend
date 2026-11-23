@@ -62,6 +62,21 @@ export class AuthController {
     const { refreshToken } = parse(refreshBody, body);
     await this.s.tokens.logout(refreshToken);
   }
+
+  /** Revoke every device session and write one audit record atomically. Bearer auth is required. */
+  @Post('logout-all') @HttpCode(204)
+  async logoutAll(@CurrentUser() user: AuthedUser): Promise<void> {
+    const at = this.s.now();
+    await this.s.prisma.$transaction(async (db) => {
+      const { count } = await db.session.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: at },
+      });
+      await db.auditLog.create({
+        data: { actorId: user.id, action: 'auth.logout_all', target: user.id, data: { revokedSessions: count } },
+      });
+    });
+  }
 }
 
 const challenges = new Map<string, { nonce: string; expires: number }>();

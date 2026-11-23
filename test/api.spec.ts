@@ -68,6 +68,37 @@ describe('auth', () => {
     await h.http().post('/v1/auth/refresh').send({ refreshToken: r1.body.refreshToken }).expect(401); // and kills the family
   });
 
+  it('logs out both devices, invalidates their bearer tokens, and records an audit event (#58)', async () => {
+    const first = await h.login(newPhone());
+    const phone = (await h.db.prisma.user.findUniqueOrThrow({ where: { id: first.userId } })).phone;
+    const otp = await h.http().post('/v1/auth/otp/request').send({ phone }).expect(200);
+    const second = await h.http().post('/v1/auth/otp/verify').send({ phone, code: otp.body.devCode }).expect(200);
+    const other = await h.login(newPhone());
+
+    expect(second.body.accessToken).not.toBe(first.token);
+    expect((await h.db.prisma.session.findMany({ where: { userId: first.userId } })).length).toBe(2);
+    await h.http().post('/v1/auth/logout-all').expect(401);
+    await h.http().get('/v1/me').set(auth(first.token)).expect(200);
+    await h.http().get('/v1/me').set(auth(second.body.accessToken)).expect(200);
+
+    await h.http().post('/v1/auth/logout-all').set(auth(first.token)).expect(204);
+
+    const sessions = await h.db.prisma.session.findMany({ where: { userId: first.userId } });
+    expect(sessions).toHaveLength(2);
+    expect(sessions.every((session) => session.revokedAt !== null)).toBe(true);
+    const audit = await h.db.prisma.auditLog.findFirstOrThrow({
+      where: { actorId: first.userId, action: 'auth.logout_all', target: first.userId },
+    });
+    expect(audit.data).toEqual({ revokedSessions: 2 });
+
+    await h.http().get('/v1/me').set(auth(first.token)).expect(401);
+    await h.http().get('/v1/me').set(auth(second.body.accessToken)).expect(401);
+    await h.http().post('/v1/auth/refresh').send({ refreshToken: first.refreshToken }).expect(401);
+    await h.http().post('/v1/auth/refresh').send({ refreshToken: second.body.refreshToken }).expect(401);
+    await h.http().get('/v1/me').set(auth(other.token)).expect(200);
+    await h.http().post('/v1/auth/refresh').send({ refreshToken: other.refreshToken }).expect(200);
+  });
+
   it('refuses bad phones and wrong codes', async () => {
     await h.http().post('/v1/auth/otp/request').send({ phone: '12345' }).expect(400);
     const p = newPhone();

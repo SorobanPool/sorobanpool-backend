@@ -53,6 +53,9 @@ export class PrismaSessionStore implements SessionStore {
   async findByHash(hash: string): Promise<SessionRecord | null> {
     return this.db.session.findUnique({ where: { refreshHash: hash } });
   }
+  async findById(id: string): Promise<SessionRecord | null> {
+    return this.db.session.findUnique({ where: { id } });
+  }
   async revoke(id: string, at: Date): Promise<void> {
     await this.db.session.update({ where: { id }, data: { revokedAt: at } });
   }
