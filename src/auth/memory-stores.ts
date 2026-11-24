@@ -27,6 +27,7 @@ export class MemoryOtpStore implements OtpStore {
 
 export class MemorySessionStore implements SessionStore {
   rows: SessionRecord[] = [];
+  replayLogs: Array<{ userId: string; sessionId: string; at: Date }> = [];
   private n = 0;
   async insert(r: Omit<SessionRecord, 'id' | 'revokedAt'>): Promise<SessionRecord> {
     const row = { ...r, id: String(++this.n), revokedAt: null };
@@ -44,5 +45,8 @@ export class MemorySessionStore implements SessionStore {
   }
   async revokeAllForUser(userId: string, at: Date): Promise<void> {
     this.rows.filter((r) => r.userId === userId).forEach((r) => (r.revokedAt ??= at));
+  }
+  async logReplayAttempt(userId: string, sessionId: string, at: Date): Promise<void> {
+    this.replayLogs.push({ userId, sessionId, at });
   }
 }

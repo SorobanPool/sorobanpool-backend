@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Header,
 import { z } from 'zod';
 import { type Prisma } from '../generated/prisma/client.js';
 import { offerHash } from '../catalog/offer.js';
-import { validateOffer } from '../catalog/offer-validation.js';
+import { CATEGORIES, validateOffer } from '../catalog/offer-validation.js';
 import { combineQuotes, convertTiers, FxDivergenceError } from '../fx/fx.js';
 import type { Tier } from '../pools/pricing.js';
 import { type AuthedUser, CurrentUser, parse, Public, Roles } from './http.js';
@@ -46,6 +46,12 @@ export class CatalogController {
     if (!o) throw new NotFoundException('offer not found');
     if (o.supplierId !== userId) throw new ForbiddenException('not your offer');
     return o;
+  }
+
+  /** Public cacheable list of allowed categories with display names (EN and PCM) and perishability flag. */
+  @Public() @Get('categories') @Header('Cache-Control', CACHE_CONTROL.catalog)
+  listCategories() {
+    return CATEGORIES;
   }
 
   @Roles('SUPPLIER') @Post('offers')

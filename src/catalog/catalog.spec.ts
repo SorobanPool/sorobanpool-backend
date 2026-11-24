@@ -1,6 +1,6 @@
 import { canonicalJson } from '../common/canonical-json.js';
 import { offerHash, type OfferTerms } from './offer.js';
-import { validateOffer, findBannedKeyword, type OfferDraft } from './offer-validation.js';
+import { ALLOWED_CATEGORIES, CATEGORIES, findBannedKeyword, validateOffer, type OfferDraft } from './offer-validation.js';
 import { combineQuotes, convertTiers, FxDivergenceError, ngnToStroops } from '../fx/fx.js';
 import { loadEnv } from '../config/env.js';
 
@@ -72,7 +72,24 @@ describe('offer validation', () => {
     expect(findBannedKeyword('Cooking oil')).toBeUndefined();
     expect(findBannedKeyword('Ginger tea')).toBeUndefined();
     expect(findBannedKeyword('Air guns and spirits')).toBe('spirit');
-    expect(validateOffer(draft({ title: 'Imported wine' }), now).errors.join()).toMatch(/banned keyword/);
+    expect(validateOffer(draft({ title: 'Imported wine' }), now).errors.join()).toMatch(/not allowed/);
+  });
+  it('handles simple obfuscation (repeated letters)', () => {
+    // Repeated letters: vodkaaa -> vodkaa -> should match vodka
+    expect(findBannedKeyword('vodkaa')).toBe('vodka');
+    expect(findBannedKeyword('cigarette pack')).toBe('cigarette');
+    expect(findBannedKeyword('whiskyyy bottle')).toBe('whisky');
+  });
+  it('does not trigger false positives on compound words', () => {
+    // 'tobacco brown' should not match because 'tobacco' is a whole word
+    expect(findBannedKeyword('ginger drink')).toBeUndefined();
+    expect(findBannedKeyword('spiritual books')).toBeUndefined();
+  });
+  it('error message names the matched field without exposing the full list', () => {
+    const r = validateOffer(draft({ description: 'Contains tramadol' }), now);
+    expect(r.errors[0]).toContain('tramadol');
+    expect(r.errors[0]).toContain('not allowed');
+    expect(r.errors[0]).not.toContain('BANNED_KEYWORDS');
   });
   it('flags price outliers for review but does not block them', () => {
     const r = validateOffer(draft(), now, 1000n);
@@ -114,5 +131,27 @@ describe('env', () => {
   it('refuses mainnet without explicit opt-in', () => {
     expect(() => loadEnv({ ...base, STELLAR_NETWORK: 'mainnet' })).toThrow(/MAINNET_ENABLED/);
     expect(loadEnv({ ...base, STELLAR_NETWORK: 'mainnet', MAINNET_ENABLED: 'true' }).STELLAR_NETWORK).toBe('mainnet');
+  });
+});
+
+describe('categories', () => {
+  it('every category has an id, names (EN and PCM), and perishability', () => {
+    for (const c of CATEGORIES) {
+      expect(c.id).toMatch(/^\w+$/);
+      expect(c.nameEn.length).toBeGreaterThan(0);
+      expect(c.namePcm.length).toBeGreaterThan(0);
+      expect(typeof c.perishable).toBe('boolean');
+    }
+  });
+  it('ALLOWED_CATEGORIES matches the category list', () => {
+    expect(ALLOWED_CATEGORIES).toHaveLength(CATEGORIES.length);
+    for (const c of CATEGORIES) {
+      expect(ALLOWED_CATEGORIES).toContain(c.id);
+    }
+  });
+  it('validation fails if a category is missing from the list', () => {
+    const invalid = draft({ category: 'nonexistent' });
+    const r = validateOffer(invalid, now);
+    expect(r.errors.join()).toMatch(/not allowed/);
   });
 });

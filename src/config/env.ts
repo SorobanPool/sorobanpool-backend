@@ -29,6 +29,7 @@ export const envSchema = z.object({
   S3_ACCESS_KEY_REF: z.string().min(1),
   S3_SECRET_KEY_REF: z.string().min(1),
   JWT_SECRET: z.string().min(32),
+  JWT_SECRET_PREVIOUS: z.string().default(''),
   JWT_REFRESH_SECRET: z.string().min(32),
   OTP_HMAC_SECRET: z.string().min(32),
   ENCRYPTION_KEY_ID: z.string().min(1),

@@ -19,6 +19,7 @@ export interface SessionStore {
   findById(id: string): Promise<SessionRecord | null>;
   revoke(id: string, at: Date): Promise<void>;
   revokeAllForUser(userId: string, at: Date): Promise<void>;
+  logReplayAttempt(userId: string, sessionId: string, at: Date): Promise<void>;
 }
 
 export interface TokenPair {
@@ -33,16 +34,40 @@ export interface AccessClaims {
   sid: string;
 }
 
+export interface JwtKey {
+  id: string;
+  secret: string;
+}
+
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 export class TokenService {
+  private readonly currentKey: JwtKey;
+  private readonly previousKeys: JwtKey[];
   private readonly jwt: JwtService;
+  
   constructor(
-    secret: string,
+    secret: string | JwtKey,
+    previousSecrets: string[] | JwtKey[] = [],
     private readonly sessions: SessionStore,
+    private readonly metrics?: { inc(name: string, labels?: Record<string, string>, by?: number): void },
     private readonly now: () => Date = () => new Date(),
   ) {
-    this.jwt = new JwtService({ secret, signOptions: { expiresIn: ACCESS_TTL_SECONDS } });
+    // Support both old single-secret format and new key-with-id format
+    if (typeof secret === 'string') {
+      this.currentKey = { id: 'default', secret };
+    } else {
+      this.currentKey = secret;
+    }
+    
+    this.previousKeys = previousSecrets.map((s, i) =>
+      typeof s === 'string' ? { id: `prev-${i}`, secret: s } : s
+    );
+    
+    this.jwt = new JwtService({ 
+      secret: this.currentKey.secret, 
+      signOptions: { expiresIn: ACCESS_TTL_SECONDS } 
+    });
   }
 
   async issue(userId: string, roles: string[]): Promise<TokenPair> {
@@ -52,13 +77,17 @@ export class TokenService {
       refreshHash: sha(refreshToken),
       expiresAt: new Date(this.now().getTime() + REFRESH_TTL_MS),
     });
-    // Access tokens are bound to their session so logout-all immediately invalidates them too.
-    const accessToken = await this.jwt.signAsync({ sub: userId, roles, sid: session.id });
+    // Access tokens carry the key id and are bound to their session
+    const accessToken = await this.jwt.signAsync(
+      { sub: userId, roles, sid: session.id },
+      { header: { kid: this.currentKey.id } }
+    );
     return { accessToken, refreshToken, expiresIn: ACCESS_TTL_SECONDS };
   }
 
   async verifyAccess(token: string): Promise<AccessClaims> {
     try {
+      // First try current key
       const claims = await this.jwt.verifyAsync<AccessClaims>(token);
       if (!claims.sid) throw new Error('Missing session identifier');
       const session = await this.sessions.findById(claims.sid);
@@ -66,7 +95,22 @@ export class TokenService {
         throw new Error('Session revoked or expired');
       }
       return claims;
-    } catch {
+    } catch (currentErr) {
+      // Try previous keys
+      for (const key of this.previousKeys) {
+        try {
+          const prevJwt = new JwtService({ secret: key.secret });
+          const claims = await prevJwt.verifyAsync<AccessClaims>(token);
+          if (!claims.sid) throw new Error('Missing session identifier');
+          const session = await this.sessions.findById(claims.sid);
+          if (!session || session.userId !== claims.sub || session.revokedAt || session.expiresAt <= this.now()) {
+            throw new Error('Session revoked or expired');
+          }
+          return claims;
+        } catch {
+          continue;
+        }
+      }
       throw new AuthError('TOKEN_INVALID', 'Invalid or expired token');
     }
   }
@@ -77,7 +121,10 @@ export class TokenService {
     const now = this.now();
     if (!rec || rec.expiresAt <= now) throw new AuthError('REFRESH_INVALID', 'Please sign in again');
     if (rec.revokedAt) {
+      // Replay detected: log it and revoke all sessions
+      await this.sessions.logReplayAttempt(rec.userId, rec.id, now);
       await this.sessions.revokeAllForUser(rec.userId, now);
+      this.metrics?.inc('auth_refresh_replay_total');
       throw new AuthError('REFRESH_REUSED', 'Please sign in again');
     }
     await this.sessions.revoke(rec.id, now);
