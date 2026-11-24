@@ -64,6 +64,7 @@ export function validateOffer(
   draft: OfferDraft,
   now: Date,
   categoryMedianPrice?: bigint,
+  options?: { isDraft?: boolean },
 ): ValidationResult {
   const errors = validateTiers(draft.tiers, draft.moq, draft.maxUnits);
   const flags: string[] = [];
@@ -71,13 +72,20 @@ export function validateOffer(
   if (!(ALLOWED_CATEGORIES as readonly string[]).includes(draft.category)) {
     errors.push(`category "${draft.category}" is not allowed in v1`);
   }
-  if (draft.images.length < MIN_PHOTOS) errors.push(`at least ${MIN_PHOTOS} photos are required`);
+  
+  // Issue #70: Require at least MIN_PHOTOS images on publish (drafts may have fewer)
+  if (!options?.isDraft && draft.images.length < MIN_PHOTOS) {
+    errors.push(`at least ${MIN_PHOTOS} photos are required`);
+  }
+  
   if (!draft.unitLabel.trim()) errors.push('unit label is required (e.g. "50kg bag")');
   if (draft.branded && !draft.brand?.trim()) errors.push('brand is required for branded goods');
   if (draft.leadTimeHours <= 0) errors.push('lead time must be positive');
   if (draft.maxPerMember <= 0 || draft.maxPerMember > draft.maxUnits) {
     errors.push('maxPerMember must be between 1 and maxUnits');
   }
+  
+  // Issue #69: Enforce MAX_VALIDITY_DAYS maximum
   const days = (draft.validUntil.getTime() - now.getTime()) / 86_400_000;
   if (days <= 0) errors.push('validUntil must be in the future');
   if (days > MAX_VALIDITY_DAYS) errors.push(`offers are valid for at most ${MAX_VALIDITY_DAYS} days`);
@@ -85,6 +93,7 @@ export function validateOffer(
   const banned = findBannedKeyword(`${draft.title} ${draft.description} ${draft.brand ?? ''}`);
   if (banned) errors.push(`banned keyword "${banned}": regulated goods are not allowed in v1`);
 
+  // Issue #65: Flag price outliers for review
   if (categoryMedianPrice && draft.tiers[0]) {
     const p = draft.tiers[0].unitPrice;
     const med = categoryMedianPrice;
@@ -93,4 +102,50 @@ export function validateOffer(
     }
   }
   return { errors, flags };
+}
+
+/**
+ * Computes the median unit price for each category from live offers.
+ * Returns a map of category to median price (in the tier's currency unit).
+ * Issue #65: Pure helper for price sanity checks.
+ */
+export function computeCategoryMedians(
+  offers: Array<{ category: string; tiers: Array<{ unitPrice: bigint }> }>,
+): Map<string, bigint> {
+  const byCategory = new Map<string, bigint[]>();
+  
+  for (const offer of offers) {
+    if (!offer.tiers[0]) continue;
+    const prices = byCategory.get(offer.category) ?? [];
+    prices.push(offer.tiers[0].unitPrice);
+    byCategory.set(offer.category, prices);
+  }
+  
+  const medians = new Map<string, bigint>();
+  for (const [category, prices] of byCategory) {
+    if (prices.length === 0) continue;
+    const sorted = [...prices].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 === 0
+      ? (sorted[mid - 1]! + sorted[mid]!) / 2n
+      : sorted[mid]!;
+    medians.set(category, median);
+  }
+  
+  return medians;
+}
+
+/**
+ * Checks if an offer's price is an outlier compared to the category median.
+ * Issue #65: Returns true if the price is more than PRICE_OUTLIER_FACTOR away from median.
+ */
+export function isPriceOutlier(
+  offerPrice: bigint,
+  categoryMedian: bigint | undefined,
+): boolean {
+  if (!categoryMedian) return false;
+  return (
+    offerPrice > categoryMedian * BigInt(PRICE_OUTLIER_FACTOR) ||
+    offerPrice * BigInt(PRICE_OUTLIER_FACTOR) < categoryMedian
+  );
 }
