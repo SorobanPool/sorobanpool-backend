@@ -49,14 +49,16 @@ model UserRole {
 }
 
 model Passkey {
-  id           String   @id
+  id           String    @id
   userId       String
-  credentialId String   @unique
+  credentialId String    @unique
   publicKey    Bytes
-  counter      Int      @default(0)
+  counter      Int       @default(0)
   transports   String[]
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id])
+  label        String?
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  user         User      @relation(fields: [userId], references: [id])
 }
 
 /// One-shot WebAuthn challenge (registration is bound to a user; usernameless login is not).
