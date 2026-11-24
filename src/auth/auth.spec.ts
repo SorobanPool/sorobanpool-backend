@@ -491,7 +491,7 @@ describe('TokenService', () => {
   const setup = () => {
     const sessions = new MemorySessionStore();
     const clock = { t: new Date('2026-10-05T10:00:00Z') };
-    return { sessions, clock, svc: new TokenService(SECRET, sessions, () => clock.t) };
+    return { sessions, clock, svc: new TokenService(SECRET, [], sessions, undefined, () => clock.t) };
   };
 
   it('issues a verifiable access token and a hashed refresh token', async () => {

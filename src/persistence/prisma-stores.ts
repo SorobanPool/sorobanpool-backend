@@ -66,6 +66,17 @@ export class PrismaSessionStore implements SessionStore {
   async revokeAllForUser(userId: string, at: Date): Promise<void> {
     await this.db.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: at } });
   }
+  async logReplayAttempt(userId: string, sessionId: string, at: Date): Promise<void> {
+    await this.db.auditLog.create({
+      data: {
+        actorId: userId,
+        action: 'REFRESH_TOKEN_REPLAY',
+        target: 'session',
+        data: { sessionId, timestamp: at.toISOString() },
+        at,
+      },
+    });
+  }
 }
 
 export class PrismaUsageStore implements UsageStore {
