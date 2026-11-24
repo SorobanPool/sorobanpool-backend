@@ -6,8 +6,9 @@ import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { AuthError } from '../auth/otp.service.js';
 import { normalizeNgPhone } from '../auth/phone.js';
-import { type AuthedUser, CurrentUser, parse, Public } from './http.js';
+import { type AuthedUser, CurrentUser, parse, Public, FreshAuth } from './http.js';
 import { devInbox, SERVICES, type Services } from './services.js';
+import { StrictRateLimit } from './rate-limit.js';
 
 export async function rolesOf(s: Services, userId: string): Promise<string[]> {
   return (await s.prisma.userRole.findMany({ where: { userId } })).map((r) => r.role);
@@ -24,7 +25,7 @@ export const refreshBody = z.object({ refreshToken: z.string().min(10) });
 export class AuthController {
   constructor(@Inject(SERVICES) private readonly s: Services) {}
 
-  @Public() @Post('otp/request') @HttpCode(200)
+  @StrictRateLimit() @Public() @Post('otp/request') @HttpCode(200)
   async request(@Body() body: unknown) {
     const { phone } = parse(otpRequestBody, body);
     const r = await this.s.otp.request(phone);
@@ -33,7 +34,7 @@ export class AuthController {
     return { phone: r.phone, ...(devCode ? { devCode } : {}) };
   }
 
-  @Public() @Post('otp/verify') @HttpCode(200)
+  @StrictRateLimit() @Public() @Post('otp/verify') @HttpCode(200)
   async verify(@Body() body: unknown) {
     const { phone, code } = parse(otpVerifyBody, body);
     const normalised = await this.s.otp.verify(phone, code);
@@ -126,7 +127,7 @@ export class UsersController {
    * challenge). This is the testnet fallback for browsers without passkeys; passkey wallets use `POST /wallets/passkey`
    * (a contract address cannot sign this challenge, so it is refused here).
    */
-  @Post('wallets') @HttpCode(200)
+  @FreshAuth() @Post('wallets') @HttpCode(200)
   async bind(@CurrentUser() u: AuthedUser, @Body() body: unknown) {
     const { address, signature } = parse(z.object({ address: z.string(), signature: z.string() }), body);
     if (StrKey.isValidContract(address)) throw new AuthError('USE_PASSKEY_WALLET', 'Passkey wallets are created with POST /wallets/passkey');
@@ -149,7 +150,7 @@ export class UsersController {
    * is theirs. The sponsor deploys it and pays; the user has no seed phrase, no XLM and nothing to back up.
    * Idempotent: a retry returns the same address.
    */
-  @Post('wallets/passkey') @HttpCode(200)
+  @FreshAuth() @Post('wallets/passkey') @HttpCode(200)
   async createPasskeyWallet(@CurrentUser() u: AuthedUser, @Body() body: unknown) {
     const { passkeyId } = parse(z.object({ passkeyId: z.string().min(1) }), body);
     const user = await this.s.prisma.user.findUniqueOrThrow({ where: { id: u.id } });

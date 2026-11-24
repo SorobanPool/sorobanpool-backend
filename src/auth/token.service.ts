@@ -32,6 +32,7 @@ export interface AccessClaims {
   sub: string;
   roles: string[];
   sid: string;
+  iat?: number; // issued at timestamp (Unix epoch seconds)
 }
 
 export interface JwtKey {

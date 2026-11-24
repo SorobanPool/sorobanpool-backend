@@ -14,12 +14,16 @@ import { currentRequestId } from '../observability/request-context.js';
 export interface AuthedUser {
   id: string;
   roles: string[];
+  iat?: number; // issued at timestamp (Unix epoch seconds), for fresh auth checks
 }
 
 export const ROLES_KEY = 'roles';
 export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
 export const PUBLIC_KEY = 'public';
 export const Public = () => SetMetadata(PUBLIC_KEY, true);
+export const FRESH_AUTH_KEY = 'freshAuth';
+/** Requires the user to have authenticated within the last 10 minutes (issue #63). */
+export const FreshAuth = () => SetMetadata(FRESH_AUTH_KEY, true);
 
 export const CurrentUser = createParamDecorator((_d: unknown, ctx: ExecutionContext): AuthedUser => {
   return ctx.switchToHttp().getRequest<{ user: AuthedUser }>().user;
@@ -34,10 +38,10 @@ export class AuthGuard implements CanActivate {
     const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_KEY, [ctx.getHandler(), ctx.getClass()]);
     const req = ctx.switchToHttp().getRequest<{ headers: Record<string, string | undefined>; user?: AuthedUser }>();
     const header = req.headers['authorization'];
-    let claims: { sub: string; roles: string[] } | undefined;
+    let claims: { sub: string; roles: string[]; iat?: number } | undefined;
     if (header?.startsWith('Bearer ')) {
       claims = await this.s.tokens.verifyAccess(header.slice(7)).catch(() => undefined);
-      if (claims) req.user = { id: claims.sub, roles: claims.roles };
+      if (claims) req.user = { id: claims.sub, roles: claims.roles, iat: claims.iat };
     }
     if (isPublic) return true;
     if (!claims) throw new UnauthorizedException('missing or invalid bearer token');
@@ -49,6 +53,22 @@ export class AuthGuard implements CanActivate {
       req.user!.roles = current;
       if (!needed.some((r) => current.includes(r))) throw new ForbiddenException('insufficient role');
     }
+    
+    // Check fresh auth requirement (issue #63)
+    const requiresFresh = this.reflector.getAllAndOverride<boolean>(FRESH_AUTH_KEY, [ctx.getHandler(), ctx.getClass()]);
+    if (requiresFresh) {
+      const now = Math.floor(this.s.now().getTime() / 1000);
+      const iat = claims.iat ?? 0;
+      const ageMinutes = (now - iat) / 60;
+      if (ageMinutes > 10) {
+        throw new ForbiddenException({ 
+          error: 'FRESH_AUTH_REQUIRED', 
+          message: 'This action requires a recent sign-in. Please sign in again.',
+          ageMinutes: Math.floor(ageMinutes),
+        });
+      }
+    }
+    
     return true;
   }
 }

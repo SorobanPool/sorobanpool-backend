@@ -61,6 +61,7 @@ export const envSchema = z.object({
   INDEXER_EMBEDDED: bool.default(false),
   METRICS_TOKEN: z.string().min(16).optional(),
   RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(300),
+  RATE_LIMIT_AUTH_PER_MIN: z.coerce.number().int().positive().default(20),
   SPONSOR_MIN_XLM: z.coerce.number().positive().default(100),
   SPONSOR_MIN_RUNWAY_DAYS: z.coerce.number().positive().default(7),
   KEEPER_EMBEDDED: bool.default(false),

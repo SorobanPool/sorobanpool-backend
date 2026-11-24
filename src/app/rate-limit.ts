@@ -1,4 +1,5 @@
-import { type CanActivate, type ExecutionContext, HttpException, Inject, Injectable } from '@nestjs/common';
+import { type CanActivate, type ExecutionContext, HttpException, Inject, Injectable, SetMetadata } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { SERVICES, type Services } from './services.js';
 
 /** Fixed-window counter per client key. In-process: with several API replicas the effective limit is per replica. */
@@ -24,17 +25,35 @@ export class FixedWindowLimiter {
   }
 }
 
+export const STRICT_RATE_LIMIT_KEY = 'strictRateLimit';
+/** Marks a route for stricter rate limiting (issue #64). */
+export const StrictRateLimit = () => SetMetadata(STRICT_RATE_LIMIT_KEY, true);
+
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly limiter: FixedWindowLimiter;
-  constructor(@Inject(SERVICES) private readonly s: Services) {
+  private readonly strictLimiter: FixedWindowLimiter;
+  
+  constructor(
+    @Inject(SERVICES) private readonly s: Services,
+    @Inject(Reflector) private readonly reflector: Reflector,
+  ) {
     this.limiter = new FixedWindowLimiter(s.env.RATE_LIMIT_PER_MIN, 60_000);
+    // Stricter limit for auth endpoints (issue #64): 20 per minute by default
+    const strictLimit = s.env.RATE_LIMIT_AUTH_PER_MIN ?? 20;
+    this.strictLimiter = new FixedWindowLimiter(strictLimit, 60_000);
   }
+  
   canActivate(ctx: ExecutionContext): boolean {
     const req = ctx.switchToHttp().getRequest<{ ip?: string; path?: string }>();
     // Liveness and readiness probes (#144) are exempt along with the original /health.
     if (/\/health(\/(live|ready))?$/.test(req.path ?? '')) return true;
-    const wait = this.limiter.take(req.ip ?? 'unknown', this.s.now().getTime());
+    
+    // Check if this route requires strict rate limiting (issue #64)
+    const isStrict = this.reflector.getAllAndOverride<boolean>(STRICT_RATE_LIMIT_KEY, [ctx.getHandler(), ctx.getClass()]);
+    const limiter = isStrict ? this.strictLimiter : this.limiter;
+    
+    const wait = limiter.take(req.ip ?? 'unknown', this.s.now().getTime());
     if (wait > 0) throw new HttpException({ error: 'RATE_LIMITED', message: `Too many requests; retry in ${wait}s`, retryAfterSecs: wait }, 429);
     return true;
   }
