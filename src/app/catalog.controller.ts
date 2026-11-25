@@ -2,8 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Header,
 import { z } from 'zod';
 import { type Prisma } from '../generated/prisma/client.js';
 import { offerHash } from '../catalog/offer.js';
-import { validateOffer, computeCategoryMedians, isPriceOutlier } from '../catalog/offer-validation.js';
-import { CATEGORIES, validateOffer } from '../catalog/offer-validation.js';
+import { validateOffer, computeCategoryMedians, isPriceOutlier, CATEGORIES } from '../catalog/offer-validation.js';
 import { combineQuotes, convertTiers, FxDivergenceError } from '../fx/fx.js';
 import type { Tier } from '../pools/pricing.js';
 import { type AuthedUser, CurrentUser, parse, Public, Roles } from './http.js';
@@ -11,6 +10,7 @@ import { CACHE_CONTROL } from './http-setup.js';
 import { SERVICES, type Services } from './services.js';
 import type { Request, Response } from 'express';
 import { createHash } from 'crypto';
+import type { PrismaClient } from '../generated/prisma/client.js';
 
 const tierNgn = z.object({ minUnits: z.number().int().positive(), priceNgn: z.string().regex(/^\d+$/, 'whole naira, digits only') });
 const offerBody = z.object({
@@ -54,6 +54,27 @@ function checkETag(req: Request, etag: string): boolean {
   return tags.includes(etag) || tags.includes('*');
 }
 
+/**
+ * Create an immutable revision snapshot for an offer.
+ * Issue #71: Record offer revision history.
+ */
+async function createOfferRevision(
+  prisma: PrismaClient,
+  offerId: string,
+  actorId: string,
+  action: 'CREATE' | 'UPDATE' | 'PUBLISH',
+  snapshot: Prisma.InputJsonValue
+): Promise<void> {
+  await prisma.offerRevision.create({
+    data: {
+      offerId,
+      actorId,
+      action,
+      snapshot,
+    },
+  });
+}
+
 @Controller()
 export class CatalogController {
   constructor(@Inject(SERVICES) private readonly s: Services) {}
@@ -86,6 +107,10 @@ export class CatalogController {
     const offer = await this.s.prisma.offer.create({
       data: { ...rest, supplierId: u.id, tiersNgn: b.tiersNgn, tiersUsdc: [], fxQuoteId: '', offerHash: '', deliveryAreas: b.deliveryAreas, status: 'DRAFT', priceOutlierFlag: false },
     });
+    
+    // Issue #71: Record revision on create
+    await createOfferRevision(this.s.prisma, offer.id, u.id, 'CREATE', offer as Prisma.InputJsonValue);
+    
     return { id: offer.id, status: offer.status, flags };
   }
 
@@ -97,7 +122,11 @@ export class CatalogController {
     // Issue #70: Drafts may have fewer than MIN_PHOTOS images
     check(b, this.s.now(), { isDraft: true });
     const { branded: _branded, ...rest } = b;
-    await this.s.prisma.offer.update({ where: { id }, data: { ...rest, tiersNgn: b.tiersNgn, deliveryAreas: b.deliveryAreas } });
+    const updatedOffer = await this.s.prisma.offer.update({ where: { id }, data: { ...rest, tiersNgn: b.tiersNgn, deliveryAreas: b.deliveryAreas } });
+    
+    // Issue #71: Record revision on update
+    await createOfferRevision(this.s.prisma, id, u.id, 'UPDATE', updatedOffer as Prisma.InputJsonValue);
+    
     return { id };
   }
 
@@ -174,7 +203,7 @@ export class CatalogController {
       : false;
     
     const p = await this.price(o, o.validUntil);
-    await this.s.prisma.offer.update({ 
+    const publishedOffer = await this.s.prisma.offer.update({ 
       where: { id }, 
       data: { 
         tiersUsdc: p.tiersUsdc, 
@@ -184,6 +213,10 @@ export class CatalogController {
         priceOutlierFlag,
       } 
     });
+    
+    // Issue #71: Record revision on publish
+    await createOfferRevision(this.s.prisma, id, u.id, 'PUBLISH', publishedOffer as Prisma.InputJsonValue);
+    
     return { id, status: 'LIVE', offerHash: p.offerHash, ngnPerUsd: p.rate, tiersUsdc: p.tiersUsdc, priceOutlierFlag };
   }
 
@@ -254,6 +287,36 @@ export class CatalogController {
     }
     
     return result;
+  }
+
+  /**
+   * Get revision history for an offer.
+   * Issue #71: Access control - only owner and admins can view revisions.
+   */
+  @Roles('SUPPLIER', 'ADMIN') @Get('offers/:id/revisions')
+  async getRevisions(@CurrentUser() u: AuthedUser, @Param('id') id: string) {
+    const o = await this.s.prisma.offer.findUnique({ where: { id } });
+    if (!o) throw new NotFoundException('offer not found');
+    
+    // Check access: only owner or admin can view revisions
+    const isAdmin = u.roles.includes('ADMIN');
+    if (!isAdmin && o.supplierId !== u.id) {
+      throw new ForbiddenException('not your offer');
+    }
+    
+    const revisions = await this.s.prisma.offerRevision.findMany({
+      where: { offerId: id },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        actorId: true,
+        action: true,
+        snapshot: true,
+        createdAt: true,
+      },
+    });
+    
+    return { offerId: id, revisions };
   }
 }
 
