@@ -249,15 +249,40 @@ export class CatalogController {
   @Public() @Get('offers') @Header('Cache-Control', CACHE_CONTROL.catalog)
   async list(@Query() q: Record<string, string | undefined>, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const now = this.s.now();
+    const query = parse(z.object({
+      category: z.string().optional(),
+      q: z.string().optional(),
+      state: z.string().optional(),
+      lga: z.string().optional(),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
+      cursor: z.string().optional(),
+    }), q ?? {});
+    
     const where: Prisma.OfferWhereInput = { status: 'LIVE', validUntil: { gt: now } };
-    if (q.category) where.category = q.category;
-    if (q.q) where.title = { contains: q.q, mode: 'insensitive' };
-    const rows = await this.s.prisma.offer.findMany({ where, orderBy: { createdAt: 'desc' }, take: 100 });
+    if (query.category) where.category = query.category;
+    if (query.q) where.title = { contains: query.q, mode: 'insensitive' };
+    
+    const rows = await this.s.prisma.offer.findMany({ 
+      where, 
+      orderBy: { createdAt: 'desc' }, 
+      take: query.limit + 1,
+      ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    });
+    
     const inArea = (areas: unknown) => {
       const a = areas as { state: string; lga?: string }[];
-      return (!q.state || a.some((x) => x.state.toLowerCase() === q.state!.toLowerCase())) && (!q.lga || a.some((x) => !x.lga || x.lga.toLowerCase() === q.lga!.toLowerCase()));
+      return (!query.state || a.some((x) => x.state.toLowerCase() === query.state!.toLowerCase())) && (!query.lga || a.some((x) => !x.lga || x.lga.toLowerCase() === query.lga!.toLowerCase()));
     };
-    const result = rows.filter((r) => inArea(r.deliveryAreas)).map(publicOffer);
+    
+    const page = rows.slice(0, query.limit);
+    const hasMore = rows.length > query.limit;
+    
+    if (hasMore) {
+      const nextCursor = page[page.length - 1]!.id;
+      res.setHeader('X-Next-Cursor', nextCursor);
+    }
+    
+    const result = page.filter((r) => inArea(r.deliveryAreas)).map(publicOffer);
     
     // Issue #68: ETag support for conditional GET
     const etag = generateETag(result);

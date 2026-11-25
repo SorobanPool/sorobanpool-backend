@@ -76,7 +76,7 @@ export class AuthGuard implements CanActivate {
 /** Parses untrusted input with zod; a failure is a 400 listing every problem. */
 export function parse<T>(schema: ZodType<T>, input: unknown): T {
   const r = schema.safeParse(input);
-  if (!r.success) throw new BadRequestException({ error: 'VALIDATION', issues: r.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message })) });
+  if (!r.success) throw new BadRequestException({ error: 'VALIDATION', fields: r.error.issues.map((i) => ({ path: i.path.join('.'), code: i.code, message: i.message })) });
   return r.data;
 }
 

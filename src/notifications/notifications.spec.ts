@@ -2,7 +2,7 @@ import { inQuietHours, nextAllowedTime, render, shouldSendNow, templateNames, SM
 
 const vars = {
   product: 'Mama Gold Rice 50kg', units: 100, naira: '1,250,000', toGo: 250, hours: 24, refund: '125,000',
-  days: 5, hub: 'Wuse Market Gate B', date: 'Mon 12 Oct', status: 'Resolved in your favour',
+  days: 5, hub: 'Wuse Market Gate B', date: 'Mon 12 Oct', status: 'Resolved in your favour', reason: 'Policy violation',
 };
 
 describe('templates', () => {

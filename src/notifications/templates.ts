@@ -13,7 +13,8 @@ export type TemplateName =
   | 'settled'
   | 'dispute_update'
   | 'offer_expiry_warning'
-  | 'confirm_window_ending';
+  | 'confirm_window_ending'
+  | 'offer_taken_down';
 
 /** SMS is the primary channel: every rendered message must fit in 160 characters. */
 export const SMS_MAX = 160;
@@ -70,6 +71,10 @@ const T: Record<TemplateName, Record<Lang, string>> = {
   confirm_window_ending: {
     EN: 'Confirm {product} within {hours}h or it auto-confirms. Open the app to confirm delivery.',
     PCM: 'Confirm {product} for {hours}h or e go auto-confirm. Open the app make you confirm delivery.',
+  },
+  offer_taken_down: {
+    EN: 'Your offer {product} was removed: {reason}. Review and edit in the app if appropriate.',
+    PCM: 'Dem don remove your offer {product}: {reason}. Check am for the app if you fit edit.',
   },
 };
 
