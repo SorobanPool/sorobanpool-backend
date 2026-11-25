@@ -112,7 +112,7 @@ export function buildServices(env: Env, prisma: PrismaClient, deployments: Deplo
       })
       : new LocalObjectStore(env.EVIDENCE_DIR)),
     otp: new OtpService(new PrismaOtpStore(prisma), sms, env.OTP_HMAC_SECRET, now, o.otpRandom, env.OTP_RESEND_COOLDOWN_SECONDS * 1000, env.OTP_HOURLY_LIMIT, env.OTP_MAX_ATTEMPTS),
-    tokens: new TokenService(env.JWT_SECRET, new PrismaSessionStore(prisma), now),
+    tokens: new TokenService(env.JWT_SECRET, [], new PrismaSessionStore(prisma), undefined, now),
     policy: new SponsorshipPolicy(contractNameMap(deployments), new PrismaUsageStore(prisma), undefined, now),
     previewCache: new PoolPreviewCache(env.POOL_PREVIEW_CACHE_TTL_SECONDS * 1000, env.POOL_PREVIEW_CACHE_MAX_ENTRIES),
     fx,

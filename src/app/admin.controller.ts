@@ -245,9 +245,22 @@ export class AdminController {
   }
 
   @Roles('ADMIN') @Post('admin/offers/:id/takedown') @HttpCode(200)
-  async takedown(@CurrentUser() admin: AuthedUser, @Param('id') id: string) {
+  async takedown(@CurrentUser() admin: AuthedUser, @Param('id') id: string, @Body() body: unknown) {
+    const b = parse(z.object({ reason: z.string().min(1).max(200).optional() }), body ?? {});
+    const offer = await this.s.prisma.offer.findUnique({ where: { id } });
+    if (!offer) throw new NotFoundException('offer not found');
+    
     await this.s.prisma.offer.update({ where: { id }, data: { status: 'TAKEN_DOWN' } });
-    await this.audit(admin.id, 'offer.takedown', id, {}); // affects new pools only; existing pools keep their snapshot
+    await this.audit(admin.id, 'offer.takedown', id, b.reason ? { reason: b.reason } : {}); // affects new pools only; existing pools keep their snapshot
+    
+    // Issue #72: Queue notification to supplier with reason
+    const { enqueue } = await import('../notifications/dispatcher.js');
+    const reason = b.reason ?? 'Policy violation';
+    await enqueue(this.s.prisma, offer.supplierId, 'offer_taken_down', { 
+      product: offer.title, 
+      reason,
+    }, this.s.now());
+    
     return { status: 'TAKEN_DOWN' };
   }
 

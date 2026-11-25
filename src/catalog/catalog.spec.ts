@@ -1,7 +1,6 @@
 import { canonicalJson } from '../common/canonical-json.js';
 import { offerHash, type OfferTerms } from './offer.js';
-import { validateOffer, findBannedKeyword, type OfferDraft, computeCategoryMedians, isPriceOutlier } from './offer-validation.js';
-import { ALLOWED_CATEGORIES, CATEGORIES, findBannedKeyword, validateOffer, type OfferDraft } from './offer-validation.js';
+import { validateOffer, findBannedKeyword, type OfferDraft, computeCategoryMedians, isPriceOutlier, ALLOWED_CATEGORIES, CATEGORIES } from './offer-validation.js';
 import { combineQuotes, convertTiers, FxDivergenceError, ngnToStroops } from '../fx/fx.js';
 import { loadEnv } from '../config/env.js';
 

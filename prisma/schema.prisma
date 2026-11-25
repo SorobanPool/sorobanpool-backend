@@ -156,9 +156,23 @@ model Offer {
   priceOutlierFlag Boolean     @default(false)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+  revisions        OfferRevision[]
 
   @@index([status, category])
   @@index([priceOutlierFlag, status])
+}
+
+/// Immutable revision history for every offer change (create, update, publish).
+model OfferRevision {
+  id            String   @id @default(cuid())
+  offerId       String
+  actorId       String
+  action        String
+  snapshot      Json
+  createdAt     DateTime @default(now())
+  offer         Offer    @relation(fields: [offerId], references: [id])
+
+  @@index([offerId, createdAt])
 }
 
 /// Read model rebuilt from ChainEvent plus off-chain extras.

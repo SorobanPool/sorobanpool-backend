@@ -238,6 +238,61 @@ describe('pools', () => {
     await h.http().post('/v1/pools/prepare').set(auth(p.s.token)).send({}).expect(403); // a plain supplier is not an organizer
   });
 
+  it('returns structured validation errors for POST /pools/prepare (#74)', async () => {
+    const p = await livePool();
+    
+    // Test missing required fields
+    const missingFields = await h.http().post('/v1/pools/prepare').set(auth(p.orgToken)).send({}).expect(400);
+    expect(missingFields.body.error).toBe('VALIDATION');
+    expect(missingFields.body.fields).toBeDefined();
+    expect(Array.isArray(missingFields.body.fields)).toBe(true);
+    expect(missingFields.body.fields.length).toBeGreaterThan(0);
+    expect(missingFields.body.fields.every((f: { path: string; code: string; message: string }) => 
+      typeof f.path === 'string' && typeof f.code === 'string' && typeof f.message === 'string'
+    )).toBe(true);
+    
+    // Test invalid fillDeadline
+    const invalidDeadline = await h.http().post('/v1/pools/prepare').set(auth(p.orgToken)).send({
+      offerId: p.offerId,
+      fillDeadline: 'not-a-date',
+      hub: { address: 'Test Hub', contact: '08012345678' },
+      pickupWindow: { from: 'Mon 9am', to: 'Mon 5pm' },
+    }).expect(400);
+    expect(invalidDeadline.body.error).toBe('VALIDATION');
+    expect(invalidDeadline.body.fields.some((f: { path: string }) => f.path === 'fillDeadline')).toBe(true);
+    
+    // Test invalid hub.address (too short)
+    const invalidHub = await h.http().post('/v1/pools/prepare').set(auth(p.orgToken)).send({
+      offerId: p.offerId,
+      fillDeadline: new Date(Date.now() + 3 * 86400_000).toISOString(),
+      hub: { address: 'ab', contact: '0801' },
+      pickupWindow: { from: 'Mon 9am', to: 'Mon 5pm' },
+    }).expect(400);
+    expect(invalidHub.body.error).toBe('VALIDATION');
+    expect(invalidHub.body.fields.some((f: { path: string; code: string }) => 
+      f.path === 'hub.address' && f.code === 'too_small'
+    )).toBe(true);
+    expect(invalidHub.body.fields.some((f: { path: string; code: string }) => 
+      f.path === 'hub.contact' && f.code === 'too_small'
+    )).toBe(true);
+    
+    // Test multiple validation errors at once
+    const multipleErrors = await h.http().post('/v1/pools/prepare').set(auth(p.orgToken)).send({
+      offerId: '',
+      fillDeadline: 'invalid',
+      hub: { address: 'x', contact: 'y' },
+      pickupWindow: { from: '', to: '' },
+      organizerFeeBp: -5,
+    }).expect(400);
+    expect(multipleErrors.body.error).toBe('VALIDATION');
+    expect(multipleErrors.body.fields.length).toBeGreaterThan(2);
+    const paths = multipleErrors.body.fields.map((f: { path: string }) => f.path);
+    expect(paths).toContain('fillDeadline');
+    expect(paths).toContain('hub.address');
+    expect(paths).toContain('hub.contact');
+    expect(paths).toContain('organizerFeeBp');
+  });
+
   it('serves quotes, a public preview and a share card once the pool is indexed', async () => {
     const p = await livePool();
     const proj = new Projector(new PrismaReadStore(h.db.prisma));
